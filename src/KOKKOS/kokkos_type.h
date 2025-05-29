@@ -154,8 +154,8 @@ typedef Kokkos::HostSpace::execution_space LMPHostType;
 
 // set default device layout
 #if defined(LMP_KOKKOS_LAYOUT_LEFT)
-//typedef LMPDeviceType::array_layout LMPDeviceLayout;
-typedef Kokkos::LayoutLeft LMPDeviceLayout;
+typedef LMPDeviceType::array_layout LMPDeviceLayout;
+//typedef Kokkos::LayoutLeft LMPDeviceLayout;
 #else
 typedef Kokkos::LayoutRight LMPDeviceLayout;
 #endif
@@ -359,7 +359,7 @@ public:
 // define precision
 
 #ifndef LMP_KOKKOS_PRECISION
-#define LMP_KOKKOS_PRECISION 1
+#define LMP_KOKKOS_PRECISION 2
 #endif
 
 #if LMP_KOKKOS_PRECISION == 1 // single
