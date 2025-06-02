@@ -803,10 +803,10 @@ struct TransformView {
   std::enable_if_t<!(std::is_same_v<DeviceType,LMPDeviceType> || Kokkos::SpaceAccessibility<LMPDeviceType::memory_space,LMPHostType::memory_space>::accessible),typename kk_view::t_host&> view() {return h_view_kk;}
 
   template<class DeviceType>
-  std::enable_if_t<(std::is_same_v<DeviceType,LMPDeviceType> || Kokkos::SpaceAccessibility<LMPDeviceType::memory_space,LMPHostType::memory_space>::accessible),const typename kk_view::t_dev&> view() const {return d_view;}
+  KOKKOS_INLINE_FUNCTION std::enable_if_t<(std::is_same_v<DeviceType,LMPDeviceType> || Kokkos::SpaceAccessibility<LMPDeviceType::memory_space,LMPHostType::memory_space>::accessible),const typename kk_view::t_dev&> view() const {return d_view;}
 
   template<class DeviceType>
-  std::enable_if_t<!(std::is_same_v<DeviceType,LMPDeviceType> || Kokkos::SpaceAccessibility<LMPDeviceType::memory_space,LMPHostType::memory_space>::accessible),const typename kk_view::t_host&> view() const {return h_view_kk;}
+  KOKKOS_INLINE_FUNCTION std::enable_if_t<!(std::is_same_v<DeviceType,LMPDeviceType> || Kokkos::SpaceAccessibility<LMPDeviceType::memory_space,LMPHostType::memory_space>::accessible),const typename kk_view::t_host&> view() const {return h_view_kk;}
 
   template<class DeviceType>
   std::enable_if_t<(std::is_same<DeviceType,LMPDeviceType>::value || Kokkos::SpaceAccessibility<LMPDeviceType::memory_space,LMPHostType::memory_space>::accessible),void> modify() {modify_device();}
