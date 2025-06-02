@@ -153,13 +153,12 @@ typedef Kokkos::DefaultExecutionSpace LMPDeviceType;
 typedef Kokkos::HostSpace::execution_space LMPHostType;
 
 // set default device layout
-#if defined(LMP_KOKKOS_LAYOUT_LEFT)
+#if defined(LMP_KOKKOS_LAYOUT_RIGHT)
+typedef Kokkos::LayoutRight LMPDeviceLayout;
+#else
 typedef LMPDeviceType::array_layout LMPDeviceLayout;
 //typedef Kokkos::LayoutLeft LMPDeviceLayout;
-#else
-typedef Kokkos::LayoutRight LMPDeviceLayout;
 #endif
-
 
 // If unified memory, need to use device memory space for host execution space
 
@@ -611,13 +610,13 @@ struct TransformView {
   static constexpr int TRANSFORM_ON_DEVICE = 0;
 
   typedef Kokkos::DualView<KKType, KKLayout, KKSpace> kk_view;
-  typedef Kokkos::View<LegacyType, Kokkos::LayoutRight, LMPHostType> legacy_view;
+  typedef typename Kokkos::DualView<LegacyType, Kokkos::LayoutRight, KKSpace>::t_host legacy_view;
 
 // private:
   kk_view k_view;
 // public:
   typename kk_view::t_dev d_view;
-  typename kk_view::t_dev h_view_kk;
+  typename kk_view::t_host h_view_kk;
   legacy_view h_view;
 
   typedef typename legacy_view::value_type value_type;
