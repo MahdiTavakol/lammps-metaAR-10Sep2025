@@ -445,7 +445,7 @@ void VerletKokkos::run(int n)
       if (pair_compute_flag && force->pair->datamask_modify != datamask_exclude)
         Kokkos::fence();
       atomKK->sync_overlapping_device(HostKK,~(~datamask_read_host|datamask_exclude));
-      if (pair_compute_flag && (force->pair->execution_space != HostKK && 
+      if (pair_compute_flag && (force->pair->execution_space != HostKK &&
           force->pair->execution_space != Host)) {
         Kokkos::deep_copy(LMPHostType(),atomKK->k_f.h_view_kk,0.0);
         atomKK->k_f.modify_host_legacy();
