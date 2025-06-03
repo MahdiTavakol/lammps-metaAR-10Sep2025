@@ -664,10 +664,8 @@ struct TransformView {
       h_view = h_view_kk;
   }
 
-  void modify_device()
+  void modify_device_legacy()
   {
-    k_view.modify_device();
-
     if constexpr (NEED_TRANSFORM) {
       if (!d_view.data()) return;
 
@@ -678,10 +676,13 @@ struct TransformView {
     }
   }
 
-  void modify_host_kk()
+  void modify_device()
   {
-    k_view.modify_host();
+    k_view.modify_device();
+    modify_device_legacy();
+  }
 
+  void modify_host_legacy() {
     if constexpr (NEED_TRANSFORM) {
       if (!h_view_kk.data()) return;
 
@@ -690,6 +691,12 @@ struct TransformView {
       if (modified_legacy_host)
         Kokkos::abort("Concurrent modification of legacy host and Kokkos host views");
     }
+  }
+
+  void modify_host_kk()
+  {
+    k_view.modify_host();
+    modify_host_legacy();
   }
 
   void modify_host() {
@@ -710,10 +717,7 @@ struct TransformView {
     }
   }
 
-  void sync_device()
-  {
-    k_view.sync_device();
-
+  void sync_device_legacy() {
     if constexpr (NEED_TRANSFORM) {
       if (!d_view.data()) return;
 
@@ -734,10 +738,13 @@ struct TransformView {
     }
   }
 
-  void sync_host_kk()
+  void sync_device()
   {
-    k_view.sync_host();
+    k_view.sync_device();
+    sync_device_legacy();
+  }
 
+  void sync_host_legacy() {
     if constexpr (NEED_TRANSFORM) {
       if (!h_view_kk.data()) return;
 
@@ -753,7 +760,14 @@ struct TransformView {
     }
   }
 
-  void sync_host() {
+  void sync_host_kk()
+  {
+    k_view.sync_host();
+    sync_host_legacy();
+  }
+
+  void sync_legacy_device()
+  {
     if constexpr (NEED_TRANSFORM) {
 
       if (!h_view.data()) return;
@@ -771,12 +785,29 @@ struct TransformView {
           modified_host_legacy = 0;
         }
         modified_device_legacy = 0;
-      } else if (modified_host_legacy) {
+      }
+    }
+  }
+
+  void sync_legacy_host()
+  {
+    if constexpr (NEED_TRANSFORM) {
+
+      if (!h_view.data()) return;
+
+      if (modified_host_legacy) {
         Kokkos::deep_copy(h_view,h_view_kk);
         modified_host_legacy = 0;
         if (k_view.need_sync_device())
           modified_device_legacy = 1;
       }
+    }
+  }
+
+  void sync_host() {
+    if constexpr (NEED_TRANSFORM) {
+      sync_legacy_device();
+      sync_legacy_host();
     } else {
       sync_host_kk();
     }
