@@ -182,7 +182,7 @@ void CommKokkos::forward_comm_device()
 
     for (int iswap = 0; iswap < nswap; iswap++) {
       if (sendproc[iswap] != me) {
-        if (comm_x_only) {
+        if (comm_x_only && std::is_same_v<typename decltype(atomKK->k_x)::array_layout,Kokkos::LayoutRight>) {
           if (size_forward_recv[iswap]) {
             buf = (double*)atomKK->k_x.view<DeviceType>().data() +
               firstrecv[iswap]*atomKK->k_x.view<DeviceType>().extent(1);
@@ -300,7 +300,7 @@ void CommKokkos::reverse_comm_device()
 
   for (int iswap = nswap-1; iswap >= 0; iswap--) {
     if (sendproc[iswap] != me) {
-      if (comm_f_only) {
+      if (comm_f_only && std::is_same_v<typename decltype(atomKK->k_f)::array_layout,Kokkos::LayoutRight>) {
         if (size_reverse_recv[iswap])
             MPI_Irecv(k_buf_recv.view<DeviceType>().data(),size_reverse_recv[iswap],MPI_DOUBLE,
                     sendproc[iswap],0,world,&request);
