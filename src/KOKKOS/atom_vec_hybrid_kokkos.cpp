@@ -122,9 +122,9 @@ void AtomVecHybridKokkos::sync(ExecutionSpace space, unsigned int h_mask)
 
 /* ---------------------------------------------------------------------- */
 
-void AtomVecHybridKokkos::sync_overlapping_device(ExecutionSpace space, unsigned int h_mask)
+void AtomVecHybridKokkos::sync_pinned_device(ExecutionSpace space, unsigned int h_mask)
 {
-  for (int k = 0; k < nstyles; k++) (dynamic_cast<AtomVecKokkos*>(styles[k]))->sync_overlapping_device(space,h_mask);
+  for (int k = 0; k < nstyles; k++) (dynamic_cast<AtomVecKokkos*>(styles[k]))->sync_pinned_device(space,h_mask);
 }
 
 /* ---------------------------------------------------------------------- */

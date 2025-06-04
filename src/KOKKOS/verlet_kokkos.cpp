@@ -385,7 +385,7 @@ void VerletKokkos::run(int n)
     unsigned int datamask_exclude = 0;
     int allow_overlap = lmp->kokkos->allow_overlap;
 
-    if (allow_overlap && atomKK->k_f.h_view_kk.data() != atomKK->k_f.d_view.data()) {
+    if (allow_overlap && atomKK->k_f.h_viewkk.data() != atomKK->k_f.d_view.data()) {
       datamask_exclude = (F_MASK | ENERGY_MASK | VIRIAL_MASK);
 
       if (pair_compute_flag) {
@@ -444,11 +444,11 @@ void VerletKokkos::run(int n)
     if (execute_on_host) {
       if (pair_compute_flag && force->pair->datamask_modify != datamask_exclude)
         Kokkos::fence();
-      atomKK->sync_overlapping_device(HostKK,~(~datamask_read_host|datamask_exclude));
+      atomKK->sync_pinned_device(HostKK,~(~datamask_read_host|datamask_exclude));
       if (pair_compute_flag && (force->pair->execution_space != HostKK &&
           force->pair->execution_space != Host)) {
-        Kokkos::deep_copy(LMPHostType(),atomKK->k_f.h_view_kk,0.0);
-        atomKK->k_f.modify_host_legacy();
+        Kokkos::deep_copy(LMPHostType(),atomKK->k_f.h_viewkk,0.0);
+        atomKK->k_f.modify_hostkk_legacy();
       }
     }
 
@@ -487,8 +487,8 @@ void VerletKokkos::run(int n)
       if (f_merge_copy.extent(0) < atomKK->k_f.extent(0))
         f_merge_copy = DAT::t_kkfloat_1d_3("VerletKokkos::f_merge_copy",atomKK->k_f.extent(0));
       f = atomKK->k_f.d_view;
-      atomKK->k_f.sync_host_legacy();
-      Kokkos::deep_copy(LMPHostType(),f_merge_copy,atomKK->k_f.h_view_kk);
+      atomKK->k_f.sync_hostkk_legacy();
+      Kokkos::deep_copy(LMPHostType(),f_merge_copy,atomKK->k_f.h_viewkk);
       Kokkos::parallel_for(atomKK->k_f.extent(0),
         ForceAdder<DAT::t_kkfloat_1d_3,DAT::t_kkfloat_1d_3>(atomKK->k_f.d_view,f_merge_copy));
       atomKK->k_f.clear_sync_state(); // special case
