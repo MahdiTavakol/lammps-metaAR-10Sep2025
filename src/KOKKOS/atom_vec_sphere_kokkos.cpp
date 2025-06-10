@@ -214,7 +214,7 @@ int AtomVecSphereKokkos::pack_comm_kokkos(
   // Check whether to always run forward communication on the host
   // Choose correct forward PackComm kernel
   if (lmp->kokkos->forward_comm_on_host) {
-    atomKK->sync(Host,X_MASK|RADIUS_MASK|RMASS_MASK);
+    atomKK->sync(HostKK,X_MASK|RADIUS_MASK|RMASS_MASK);
     if (pbc_flag) {
       if (domain->triclinic) {
         struct AtomVecSphereKokkos_PackComm<LMPHostType,1,1> f(
@@ -399,7 +399,7 @@ int AtomVecSphereKokkos::pack_comm_vel_kokkos(
   const int* const pbc)
 {
   if (lmp->kokkos->forward_comm_on_host) {
-    atomKK->sync(Host,X_MASK|RADIUS_MASK|RMASS_MASK|V_MASK|OMEGA_MASK);
+    atomKK->sync(HostKK,X_MASK|RADIUS_MASK|RMASS_MASK|V_MASK|OMEGA_MASK);
     if (pbc_flag) {
       if (deform_vremap) {
         if (domain->triclinic) {
@@ -729,8 +729,8 @@ int AtomVecSphereKokkos::pack_comm_self(
   if (radvary == 0)
     return AtomVecKokkos::pack_comm_self(n,list,nfirst,pbc_flag,pbc);
   if (lmp->kokkos->forward_comm_on_host) {
-    atomKK->sync(Host,X_MASK|RADIUS_MASK|RMASS_MASK);
-    atomKK->modified(Host,X_MASK|RADIUS_MASK|RMASS_MASK);
+    atomKK->sync(HostKK,X_MASK|RADIUS_MASK|RMASS_MASK);
+    atomKK->modified(HostKK,X_MASK|RADIUS_MASK|RMASS_MASK);
     if (pbc_flag) {
       if (domain->triclinic) {
         struct AtomVecSphereKokkos_PackCommSelf<LMPHostType,1,1> f(
@@ -861,7 +861,7 @@ void AtomVecSphereKokkos::unpack_comm_kokkos(
     return;
   }
   if (lmp->kokkos->forward_comm_on_host) {
-    atomKK->modified(Host,X_MASK|RADIUS_MASK|RMASS_MASK);
+    atomKK->modified(HostKK,X_MASK|RADIUS_MASK|RMASS_MASK);
     struct AtomVecSphereKokkos_UnpackComm<LMPHostType> f(
       atomKK->k_x,
       atomKK->k_radius,atomKK->k_rmass,
@@ -934,7 +934,7 @@ void AtomVecSphereKokkos::unpack_comm_vel_kokkos(
   const int &n, const int &first,
   const DAT::tdual_double_2d_lr &buf) {
   if (lmp->kokkos->forward_comm_on_host) {
-    atomKK->modified(Host,X_MASK|RADIUS_MASK|RMASS_MASK|V_MASK|OMEGA_MASK);
+    atomKK->modified(HostKK,X_MASK|RADIUS_MASK|RMASS_MASK|V_MASK|OMEGA_MASK);
     if (radvary == 0) {
       struct AtomVecSphereKokkos_UnpackCommVel<LMPHostType,0> f(
         atomKK->k_x,

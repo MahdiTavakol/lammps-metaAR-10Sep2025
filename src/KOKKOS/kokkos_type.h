@@ -606,7 +606,7 @@ struct dual_hash_type {
 template<class KKType, class LegacyType, class KKLayout, class KKSpace = LMPDeviceType>
 struct TransformView {
 
-  static constexpr int NEED_TRANSFORM = (!std::is_same<KKType,LegacyType>::value) || (!std::is_same<KKLayout,Kokkos::LayoutRight>::value);
+  static constexpr int NEED_TRANSFORM = !(std::is_same<KKType,LegacyType>::value && std::is_same<KKLayout,Kokkos::LayoutRight>::value);
   static constexpr int TRANSFORM_ON_DEVICE = 0;
 
   typedef Kokkos::DualView<KKType, KKLayout, KKSpace> kk_view;
