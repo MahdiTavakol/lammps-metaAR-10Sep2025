@@ -487,7 +487,7 @@ void VerletKokkos::run(int n)
       if (f_merge_copy.extent(0) < atomKK->k_f.extent(0))
         f_merge_copy = DAT::t_kkfloat_1d_3("VerletKokkos::f_merge_copy",atomKK->k_f.extent(0));
       f = atomKK->k_f.d_view;
-      atomKK->k_f.sync_hostkk_legacy();
+      atomKK->k_f.sync_legacy_to_hostkk();
       Kokkos::deep_copy(LMPHostType(),f_merge_copy,atomKK->k_f.h_viewkk);
       Kokkos::parallel_for(atomKK->k_f.extent(0),
         ForceAdder<DAT::t_kkfloat_1d_3,DAT::t_kkfloat_1d_3>(atomKK->k_f.d_view,f_merge_copy));
