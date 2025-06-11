@@ -780,6 +780,7 @@ struct TransformView {
           if (k_view.need_sync_host())
             modified_legacy_hostkk = 1;
         } else {
+          k_view.modify_device();
           k_view.sync_host();
           Kokkos::deep_copy(h_view,h_viewkk);
           modified_hostkk_legacy = 0;
