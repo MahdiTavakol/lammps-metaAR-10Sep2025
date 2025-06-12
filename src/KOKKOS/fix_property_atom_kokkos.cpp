@@ -132,11 +132,16 @@ void FixPropertyAtomKokkos::sync(ExecutionSpace space, unsigned int mask)
     if (q_flag && (mask & Q_MASK)) atomKK->k_q.sync_device();
     if (rmass_flag && (mask & RMASS_MASK)) {atomKK->k_rmass.sync_device();}
     if (dvector_flag && (mask & DVECTOR_MASK)) atomKK->k_dvector.sync_device();
-  } else {
+  } else if (space == Host) {
     if (molecule_flag && (mask & MOLECULE_MASK)) atomKK->k_molecule.sync_host();
     if (q_flag && (mask & Q_MASK)) atomKK->k_q.sync_host();
     if (rmass_flag && (mask & RMASS_MASK)) atomKK->k_rmass.sync_host();
     if (dvector_flag && (mask & DVECTOR_MASK)) atomKK->k_dvector.sync_host();
+  } else if (space == HostKK) {
+    if (molecule_flag && (mask & MOLECULE_MASK)) atomKK->k_molecule.sync_host();
+    if (q_flag && (mask & Q_MASK)) atomKK->k_q.sync_hostkk();
+    if (rmass_flag && (mask & RMASS_MASK)) atomKK->k_rmass.sync_hostkk();
+    if (dvector_flag && (mask & DVECTOR_MASK)) atomKK->k_dvector.sync_hostkk();
   }
 }
 
@@ -174,10 +179,15 @@ void FixPropertyAtomKokkos::modified(ExecutionSpace space, unsigned int mask)
     if (q_flag && (mask & Q_MASK)) atomKK->k_q.modify_device();
     if (rmass_flag && (mask & RMASS_MASK)) atomKK->k_rmass.modify_device();
     if (dvector_flag && (mask & DVECTOR_MASK)) atomKK->k_dvector.modify_device();
-  } else {
+  } else if (space == Host) {
     if (molecule_flag && (mask & MOLECULE_MASK)) atomKK->k_molecule.modify_host();
     if (q_flag && (mask & Q_MASK)) atomKK->k_q.modify_host();
     if (rmass_flag && (mask & RMASS_MASK)) atomKK->k_rmass.modify_host();
     if (dvector_flag && (mask & DVECTOR_MASK)) atomKK->k_dvector.modify_host();
+  } else if (space == HostKK) {
+    if (molecule_flag && (mask & MOLECULE_MASK)) atomKK->k_molecule.modify_host();
+    if (q_flag && (mask & Q_MASK)) atomKK->k_q.modify_hostkk();
+    if (rmass_flag && (mask & RMASS_MASK)) atomKK->k_rmass.modify_hostkk();
+    if (dvector_flag && (mask & DVECTOR_MASK)) atomKK->k_dvector.modify_hostkk();
   }
 }
