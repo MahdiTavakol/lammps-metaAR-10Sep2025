@@ -606,8 +606,7 @@ struct dual_hash_type {
 template<class KKType, class LegacyType, class KKLayout, class KKSpace = LMPDeviceType>
 struct TransformView {
 
-  static constexpr int NEED_TRANSFORM = (!std::is_same<KKType,LegacyType>::value) || (!std::is_same<KKLayout,Kokkos::LayoutRight>::value);
-  static constexpr int TRANSFORM_ON_DEVICE = 0;
+  static constexpr int NEED_TRANSFORM = !(std::is_same<KKType,LegacyType>::value && std::is_same<KKLayout,Kokkos::LayoutRight>::value);
 
   typedef Kokkos::DualView<KKType, KKLayout, KKSpace> kk_view;
   typedef typename Kokkos::DualView<LegacyType, Kokkos::LayoutRight, KKSpace>::t_host legacy_view;
@@ -658,9 +657,11 @@ struct TransformView {
     k_view.resize(ns...);
     d_view = k_view.d_view;
     h_viewkk = k_view.h_view;
-    if constexpr (NEED_TRANSFORM)
+    if constexpr (NEED_TRANSFORM) {
       Kokkos::resize(h_view,ns...);
-    else
+      if (k_view.need_sync_host()) modify_device_legacy();
+      else if (k_view.need_sync_device()) modify_hostkk_legacy();
+    } else
       h_view = h_viewkk;
   }
 
@@ -699,40 +700,49 @@ struct TransformView {
     modify_hostkk_legacy();
   }
 
-  void modify_host() {
+  void modify_legacy_device()
+  {
     if constexpr (NEED_TRANSFORM) {
-
       if (!h_view.data()) return;
 
-      modified_legacy_hostkk = 1;
       modified_legacy_device = 1;
 
       if (modified_device_legacy)
         Kokkos::abort("Concurrent modification of device and legacy host views");
+    }
+  }
+
+  void modify_legacy_hostkk()
+  {
+    if constexpr (NEED_TRANSFORM) {
+      if (!h_view.data()) return;
+
+      modified_legacy_hostkk = 1;
 
       if (modified_hostkk_legacy)
         Kokkos::abort("Concurrent modification of Kokkos host and legacy host views");
+    }
+  }
+
+  void modify_host() {
+    if constexpr (NEED_TRANSFORM) {
+      modify_legacy_device();
+      modify_legacy_hostkk();
     } else {
      modify_hostkk();
     }
   }
 
-  void sync_device_legacy() {
+  void sync_legacy_to_device() {
     if constexpr (NEED_TRANSFORM) {
       if (!d_view.data()) return;
 
       if (modified_legacy_device) {
-        if constexpr (TRANSFORM_ON_DEVICE) {
-          auto d_legacy = Kokkos::create_mirror_view_and_copy(h_view);
-          Kokkos::deep_copy(d_view,d_legacy);
-          if (modified_legacy_hostkk)
-            k_view.modify_device();
-        } else {
-          Kokkos::deep_copy(h_viewkk,h_view);
-          k_view.modify_host();
-          k_view.sync_device();
-          modified_legacy_hostkk = 0;
-        }
+        Kokkos::deep_copy(h_viewkk,h_view);
+        k_view.modify_host();
+        k_view.sync_device();
+        modified_legacy_hostkk = 0;
+        modified_hostkk_legacy = 0;
         modified_legacy_device = 0;
       }
     }
@@ -741,21 +751,18 @@ struct TransformView {
   void sync_device()
   {
     k_view.sync_device();
-    sync_device_legacy();
+    sync_legacy_to_device();
   }
 
-  void sync_hostkk_legacy() {
+  void sync_legacy_to_hostkk() {
     if constexpr (NEED_TRANSFORM) {
       if (!h_viewkk.data()) return;
 
-      if (modified_device_legacy)
-        modified_hostkk_legacy = 1;
-
       if (modified_legacy_hostkk) {
         Kokkos::deep_copy(h_viewkk,h_view);
-        modified_legacy_hostkk = 0;
         if (modified_legacy_device)
           k_view.modify_host();
+        modified_legacy_hostkk = 0;
       }
     }
   }
@@ -763,33 +770,26 @@ struct TransformView {
   void sync_hostkk()
   {
     k_view.sync_host();
-    sync_hostkk_legacy();
+    sync_legacy_to_hostkk();
   }
 
-  void sync_legacy_device()
+  void sync_device_to_legacy()
   {
     if constexpr (NEED_TRANSFORM) {
-
       if (!h_view.data()) return;
 
       if (modified_device_legacy) {
-        if constexpr (TRANSFORM_ON_DEVICE) {
-          auto d_legacy = Kokkos::create_mirror_view(h_view); // add NoInit
-          Kokkos::deep_copy(d_legacy,d_view);
-          Kokkos::deep_copy(h_view,d_legacy);
-          if (k_view.need_sync_host())
-            modified_legacy_hostkk = 1;
-        } else {
-          k_view.sync_host();
-          Kokkos::deep_copy(h_view,h_viewkk);
-          modified_hostkk_legacy = 0;
-        }
+        k_view.modify_device();
+        k_view.sync_host();
+        Kokkos::deep_copy(h_view,h_viewkk);
+        modified_hostkk_legacy = 0;
+        modified_legacy_hostkk = 0;
         modified_device_legacy = 0;
       }
     }
   }
 
-  void sync_legacy_hostkk()
+  void sync_hostkk_to_legacy()
   {
     if constexpr (NEED_TRANSFORM) {
 
@@ -799,15 +799,15 @@ struct TransformView {
         Kokkos::deep_copy(h_view,h_viewkk);
         modified_hostkk_legacy = 0;
         if (k_view.need_sync_device())
-          modified_device_legacy = 1;
+          modify_legacy_device();
       }
     }
   }
 
   void sync_host() {
     if constexpr (NEED_TRANSFORM) {
-      sync_legacy_device();
-      sync_legacy_hostkk();
+      sync_device_to_legacy();
+      sync_hostkk_to_legacy();
     } else {
       sync_hostkk();
     }

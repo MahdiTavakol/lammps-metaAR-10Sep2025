@@ -188,7 +188,7 @@ class AtomVecKokkos : virtual public AtomVec {
     mirror_type tmp_view((typename ViewType::value_type*)buffer, src.d_view.layout());
 
     if (space == Device) {
-      src.sync_hostkk_legacy();
+      src.sync_legacy_to_hostkk();
       Kokkos::deep_copy(LMPHostType(),tmp_view,src.h_viewkk);
       Kokkos::deep_copy(LMPHostType(),src.d_view,tmp_view);
       src.clear_sync_state();
@@ -199,14 +199,14 @@ class AtomVecKokkos : virtual public AtomVec {
         if (src.modified_legacy_device)
           src.modify_hostkk_legacy();
       }
-      src.sync_hostkk_legacy();
+      src.sync_legacy_to_hostkk();
       src.clear_sync_state();
       if (src.modified_legacy_device)
       src.modify_hostkk_legacy();
     } else if (space == Host) {
       Kokkos::deep_copy(LMPHostType(),tmp_view,src.d_view);
       Kokkos::deep_copy(LMPHostType(),src.h_viewkk,tmp_view);
-      src.sync_legacy_hostkk();
+      src.sync_hostkk_to_legacy();
     }
   }
   #else
