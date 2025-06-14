@@ -140,7 +140,7 @@ class PairExp6rxKokkos : public PairExp6rx {
   int nthreads,ntypes;
 
   typename AT::t_kkfloat_1d_3_lr_randomread x;
-  typename AT::t_kkfloat_1d_3 f;
+  typename AT::t_kksum_1d_3 f;
   typename AT::t_int_1d_randomread type;
   typename AT::t_kkfloat_1d uCG, uCGnew;
   typename AT::t_kkfloat_2d dvector;

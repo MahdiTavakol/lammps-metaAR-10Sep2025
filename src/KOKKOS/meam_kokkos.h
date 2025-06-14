@@ -65,7 +65,7 @@ template <class DeviceType> class MEAMKokkos : public MEAM {
   typename AT::t_neighbors_2d d_neighbors_half;
   typename AT::t_neighbors_2d d_neighbors_full;
   typename AT::t_int_1d d_ilist_half;
-  typename AT::t_kkfloat_1d_3 f;
+  typename AT::t_kksum_1d_3 f;
   typename AT::t_kkfloat_1d_6 d_vatom;
 
   // parameters to meam_dens_final
@@ -86,7 +86,7 @@ template <class DeviceType> class MEAMKokkos : public MEAM {
                        EV_FLOAT &);
   void meam_force(int, int, int, int, int, typename AT::t_kkfloat_1d, int,
                   typename AT::t_int_1d, typename AT::t_int_1d, typename AT::t_kkfloat_1d_3_lr,
-                  typename AT::t_int_1d, typename AT::t_int_1d, typename AT::t_kkfloat_1d_3,
+                  typename AT::t_int_1d, typename AT::t_int_1d, typename AT::t_kksum_1d_3,
                   typename AT::t_kkfloat_1d_6, typename AT::t_int_1d,
                   typename AT::t_int_1d, typename AT::t_neighbors_2d, typename AT::t_neighbors_2d,
                   int, int, EV_FLOAT &);

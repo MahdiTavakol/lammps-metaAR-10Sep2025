@@ -95,9 +95,9 @@ class FixEOStableRXKokkos : public FixEOStableRX {
   };
 
   struct TableHost {
-    typename ArrayTypes<LMPHostType>::t_int_1d lo,hi;
-    typename ArrayTypes<LMPHostType>::t_kkfloat_1d invdelta;
-    typename ArrayTypes<LMPHostType>::t_kkfloat_2d r,e,de;
+    HAT::t_int_1d lo,hi;
+    HAT::t_kkfloat_1d invdelta;
+    HAT::t_kkfloat_2d r,e,de;
   };
 
   TableDeviceConst d_table_const;

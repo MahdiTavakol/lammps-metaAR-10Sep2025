@@ -660,7 +660,7 @@ void AtomVecDipoleKokkos::sync_pinned_device(ExecutionSpace space, unsigned int 
     if ((mask & V_MASK) && atomKK->k_v.need_sync_device())
       perform_pinned_copy_transform<DAT::ttransform_kkfloat_1d_3>(atomKK->k_v,space);
     if ((mask & F_MASK) && atomKK->k_f.need_sync_device())
-      perform_pinned_copy_transform<DAT::ttransform_kkfloat_1d_3>(atomKK->k_f,space);
+      perform_pinned_copy_transform<DAT::ttransform_kksum_1d_3>(atomKK->k_f,space);
     if ((mask & TAG_MASK) && atomKK->k_tag.need_sync_device())
       perform_pinned_copy<DAT::tdual_tagint_1d>(atomKK->k_tag,space);
     if ((mask & TYPE_MASK) && atomKK->k_type.need_sync_device())
@@ -679,7 +679,7 @@ void AtomVecDipoleKokkos::sync_pinned_device(ExecutionSpace space, unsigned int 
     if ((mask & V_MASK) && atomKK->k_v.need_sync_host())
       perform_pinned_copy_transform<DAT::ttransform_kkfloat_1d_3>(atomKK->k_v,space);
     if ((mask & F_MASK) && atomKK->k_f.need_sync_host())
-      perform_pinned_copy_transform<DAT::ttransform_kkfloat_1d_3>(atomKK->k_f,space);
+      perform_pinned_copy_transform<DAT::ttransform_kksum_1d_3>(atomKK->k_f,space);
     if ((mask & TAG_MASK) && atomKK->k_tag.need_sync_host())
       perform_pinned_copy<DAT::tdual_tagint_1d>(atomKK->k_tag,space);
     if ((mask & TYPE_MASK) && atomKK->k_type.need_sync_host())

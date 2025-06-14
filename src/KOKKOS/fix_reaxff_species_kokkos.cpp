@@ -69,7 +69,7 @@ void FixReaxFFSpeciesKokkos::FindMolecule()
   double **spec_atom = f_SPECBOND->array_atom;
 
   inum = reaxff->list->inum;
-  typename ArrayTypes<LMPHostType>::t_int_1d ilist;
+  HAT::t_int_1d ilist;
   if (reaxff->execution_space == HostKK) {
     NeighListKokkos<LMPHostType>* k_list = static_cast<NeighListKokkos<LMPHostType>*>(reaxff->list);
     k_list->k_ilist.sync_host();

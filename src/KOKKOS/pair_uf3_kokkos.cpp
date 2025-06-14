@@ -885,7 +885,7 @@ PairUF3Kokkos<DeviceType>::operator()(TagPairUF3ComputeFullA<NEIGHFLAG, EVFLAG>,
   KK_FLOAT del_rji[3], del_rki[3], del_rkj[3], triangle_eval[3];
   KK_FLOAT fij[3], fik[3], fjk[3];
   KK_FLOAT fji[3], fki[3], fkj[3];
-  KK_FLOAT Fj[3], Fk[3];
+  KK_SUM_FLOAT Fj[3], Fk[3];
   KK_FLOAT evdwl = 0, evdwl3 = 0;
   KK_FLOAT fpair = 0;
 
@@ -1182,8 +1182,8 @@ template <class DeviceType>
 template <int NEIGHFLAG>
 KOKKOS_INLINE_FUNCTION void
 PairUF3Kokkos<DeviceType>::ev_tally3(EV_FLOAT &ev, const int &i, const int &j, int &k,
-                                     const KK_FLOAT &evdwl, const KK_FLOAT &ecoul, KK_FLOAT *fj,
-                                     KK_FLOAT *fk, KK_FLOAT *drji, KK_FLOAT *drki) const
+                                     const KK_FLOAT &evdwl, const KK_FLOAT &ecoul, KK_SUM_FLOAT *fj,
+                                     KK_SUM_FLOAT *fk, KK_FLOAT *drji, KK_FLOAT *drki) const
 {
   KK_FLOAT epairthird, v[6];
 

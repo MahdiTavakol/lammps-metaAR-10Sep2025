@@ -210,7 +210,7 @@ class FixQEqReaxFFKokkos : public FixQEqReaxFF, public KokkosBase {
 
   typename AT::t_kkfloat_1d_3_lr x;
   typename AT::t_kkfloat_1d_3 v;
-  typename AT::t_kkfloat_1d_3_const f;
+  typename AT::t_kksum_1d_3_const f;
   //typename AT::t_kkfloat_1d_randomread mass, q;
   typename AT::t_kkfloat_1d_randomread mass;
   typename AT::t_kkfloat_1d q;
@@ -255,8 +255,8 @@ class FixQEqReaxFFKokkos : public FixQEqReaxFF, public KokkosBase {
   template<typename DataType, typename Layout>
   using NonDupScatterView = KKScatterView<DataType, Layout, KKDeviceType, KKScatterSum, KKScatterNonDuplicated>;
 
-  DupScatterView<KK_FLOAT**, typename AT::t_kkfloat_1d_2::array_layout> dup_o;
-  NonDupScatterView<KK_FLOAT**, typename AT::t_kkfloat_1d_2::array_layout> ndup_o;
+  DupScatterView<KK_FLOAT**, DAT::t_kkfloat_1d_2::array_layout> dup_o;
+  NonDupScatterView<KK_FLOAT**, DAT::t_kkfloat_1d_2::array_layout> ndup_o;
 
   int nsend;
   int first;

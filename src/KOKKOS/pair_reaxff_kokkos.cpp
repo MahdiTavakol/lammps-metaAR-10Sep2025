@@ -2672,7 +2672,7 @@ void PairReaxFFKokkos<DeviceType>::operator()(TagPairReaxComputeAngularPreproces
   KK_FLOAT Ctheta_0, theta_0, theta_00, theta, cos_theta, sin_theta;
   KK_FLOAT BOA_ij, BOA_ik, rij, bo_ij, bo_ik;
   KK_FLOAT dcos_theta_di[3], dcos_theta_dj[3], dcos_theta_dk[3];
-  KK_FLOAT eng_tmp, fi_tmp[3], fj_tmp[3], fk_tmp[3];
+  KK_SUM_FLOAT eng_tmp, fi_tmp[3], fj_tmp[3], fk_tmp[3];
   KK_FLOAT delij[3], delik[3], delji[3], delki[3];
 
   p_val6 = gp[14];
@@ -3844,7 +3844,7 @@ template<class DeviceType>
 template<int NEIGHFLAG>
 KOKKOS_INLINE_FUNCTION
 void PairReaxFFKokkos<DeviceType>::v_tally(EV_FLOAT_REAX &ev, const int &i,
-  KK_FLOAT *fi, KK_FLOAT *drij) const
+  KK_SUM_FLOAT *fi, KK_FLOAT *drij) const
 {
   KK_FLOAT v[6];
 
@@ -3879,7 +3879,7 @@ template<class DeviceType>
 template<int NEIGHFLAG>
 KOKKOS_INLINE_FUNCTION
 void PairReaxFFKokkos<DeviceType>::v_tally3(EV_FLOAT_REAX &ev, const int &i, const int &j, const int &k,
-  KK_FLOAT *fj, KK_FLOAT *fk, KK_FLOAT *drij, KK_FLOAT *drik) const
+  KK_SUM_FLOAT *fj, KK_SUM_FLOAT *fk, KK_FLOAT *drij, KK_FLOAT *drik) const
 {
   // The eatom and vatom arrays are duplicated for OpenMP, atomic for GPU, and neither for Serial
   auto v_vatom = ScatterViewHelper<NeedDup_v<NEIGHFLAG,DeviceType>,decltype(dup_vatom),decltype(ndup_vatom)>::get(dup_vatom,ndup_vatom);
@@ -3919,7 +3919,7 @@ template<class DeviceType>
 template<int NEIGHFLAG>
 KOKKOS_INLINE_FUNCTION
 void PairReaxFFKokkos<DeviceType>::v_tally4(EV_FLOAT_REAX &ev, const int &i, const int &j, const int &k,
-  const int &l, KK_FLOAT *fi, KK_FLOAT *fj, KK_FLOAT *fk, KK_FLOAT *dril, KK_FLOAT *drjl, KK_FLOAT *drkl) const
+  const int &l, KK_SUM_FLOAT *fi, KK_SUM_FLOAT *fj, KK_SUM_FLOAT *fk, KK_FLOAT *dril, KK_FLOAT *drjl, KK_FLOAT *drkl) const
 {
   // The vatom array is duplicated for OpenMP, atomic for GPU, and neither for Serial
 
@@ -3961,7 +3961,7 @@ void PairReaxFFKokkos<DeviceType>::v_tally4(EV_FLOAT_REAX &ev, const int &i, con
 template<class DeviceType>
 KOKKOS_INLINE_FUNCTION
 void PairReaxFFKokkos<DeviceType>::v_tally3_atom(EV_FLOAT_REAX &ev, const int &i, const int & /*j*/,
-                                                const int & /*k*/, KK_FLOAT *fj, KK_FLOAT *fk,
+                                                const int & /*k*/, KK_SUM_FLOAT *fj, KK_SUM_FLOAT *fk,
                                                 KK_FLOAT *drji, KK_FLOAT *drjk) const
 {
   KK_FLOAT v[6];
