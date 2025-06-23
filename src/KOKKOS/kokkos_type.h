@@ -672,8 +672,14 @@ struct TransformView {
 
       modified_device_legacy = 1;
 
-      if (modified_legacy_device)
-        Kokkos::abort("Concurrent modification of legacy host and device views");
+      if (modified_legacy_device) {
+        std::string msg = "TransformView::modify ERROR: ";
+        msg += "Concurrent modification of legacy host and device views ";
+        msg += "in TransformView \"";
+        msg += d_view.label();
+        msg += "\"\n";
+        Kokkos::abort(msg.c_str());
+      }
     }
   }
 
@@ -689,8 +695,14 @@ struct TransformView {
 
       modified_hostkk_legacy = 1;
 
-      if (modified_legacy_hostkk)
-        Kokkos::abort("Concurrent modification of legacy host and Kokkos host views");
+      if (modified_legacy_hostkk) {
+        std::string msg = "TransformView::modify ERROR: ";
+        msg += "Concurrent modification of legacy host and Kokkos host views ";
+        msg += "in TransformView \"";
+        msg += d_view.label();
+        msg += "\"\n";
+        Kokkos::abort(msg.c_str());
+      }
     }
   }
 
@@ -707,8 +719,14 @@ struct TransformView {
 
       modified_legacy_device = 1;
 
-      if (modified_device_legacy)
-        Kokkos::abort("Concurrent modification of device and legacy host views");
+      if (modified_device_legacy) {
+        std::string msg = "TransformView::modify ERROR: ";
+        msg += "Concurrent modification of device and legacy host views ";
+        msg += "in TransformView \"";
+        msg += d_view.label();
+        msg += "\"\n";
+        Kokkos::abort(msg.c_str());
+      }
     }
   }
 
@@ -719,8 +737,14 @@ struct TransformView {
 
       modified_legacy_hostkk = 1;
 
-      if (modified_hostkk_legacy)
-        Kokkos::abort("Concurrent modification of Kokkos host and legacy host views");
+      if (modified_hostkk_legacy) {
+        std::string msg = "TransformView::modify ERROR: ";
+        msg += "Concurrent modification of Kokkos host and legacy host views ";
+        msg += "in TransformView \"";
+        msg += d_view.label();
+        msg += "\"\n";
+        Kokkos::abort(msg.c_str());
+      }
     }
   }
 
