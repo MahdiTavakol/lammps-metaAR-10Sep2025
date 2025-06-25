@@ -145,18 +145,20 @@ class AtomVecKokkos : virtual public AtomVec {
        buffer_size = src.span()*sizeof(typename ViewType::value_type);
        buffer = Kokkos::kokkos_realloc<LMPPinnedHostType>(buffer,buffer_size);
     }
+
     mirror_type tmp_view((typename ViewType::value_type*)buffer, src.d_view.layout());
 
-    if (space == Device) {
-      Kokkos::deep_copy(LMPHostType(),tmp_view,src.h_view);
+    if (src.d_view.data() && space == Device) {
+      Kokkos::deep_copy(LMPHostType(),tmp_view,src.h_view),
       Kokkos::deep_copy(LMPHostType(),src.d_view,tmp_view);
       src.clear_sync_state();
-    } else {
-      Kokkos::deep_copy(LMPHostType(),tmp_view,src.d_view);
+      if (!async_flag) Kokkos::fence(); // change to less agressive fence?
+    } else if (src.h_view.data()) {
+      Kokkos::deep_copy(LMPHostType(),tmp_view,src.d_view),
       Kokkos::deep_copy(LMPHostType(),src.h_view,tmp_view);
       src.clear_sync_state();
+      if (!async_flag) Kokkos::fence(); // change to less agressive fence?
     }
-    if (!async_flag) Kokkos::fence(); // change to less agressive fence?
   }
   #else
   template<class ViewType>
@@ -188,20 +190,20 @@ class AtomVecKokkos : virtual public AtomVec {
 
     if (space == Device)
       src.sync_device(buffer);
-    else if (space == HostKK)
-      src.sync_hostkk(buffer);
     else if (space == Host)
       src.sync_host(buffer);
+    else if (space == HostKK)
+      src.sync_hostkk(buffer);
   }
   #else
   template<class TransformViewType>
   void perform_pinned_copy_transform(TransformViewType& src, unsigned int space, int async_flag = 0) {
     if (space == Device)
       src.sync_device();
-    else if (space == HostKK)
-      src.sync_hostkk();
     else if (space == Host)
       src.sync_host();
+    else if (space == HostKK)
+      src.sync_hostkk();
   }
   #endif
 };

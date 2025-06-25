@@ -770,7 +770,7 @@ struct TransformView {
 
       if (modified_legacy_device) {
         if (buffer) {
-          pinned_mirror_type tmp_view((typename kk_view::value_type*)buffer, typename kk_view::array_layout());
+          pinned_mirror_type tmp_view((typename kk_view::value_type*)buffer, d_view.layout());
           Kokkos::deep_copy(LMPHostType(),tmp_view,h_view);
           Kokkos::deep_copy(LMPHostType(),d_view,tmp_view);
           if (!async_flag) Kokkos::fence();
@@ -788,8 +788,8 @@ struct TransformView {
 
   void sync_device(void* buffer = nullptr, int async_flag = 0)
   {
-    if (buffer && k_view.need_sync_device()) {
-      pinned_mirror_type tmp_view((typename kk_view::value_type*)buffer, typename kk_view::array_layout());
+    if (d_view.data() && buffer && k_view.need_sync_device()) {
+      pinned_mirror_type tmp_view((typename kk_view::value_type*)buffer, d_view.layout());
       Kokkos::deep_copy(LMPHostType(),tmp_view,h_viewkk);
       Kokkos::deep_copy(LMPHostType(),d_view,tmp_view);
       k_view.clear_sync_state();
@@ -816,8 +816,8 @@ struct TransformView {
 
   void sync_hostkk(void* buffer = nullptr, int async_flag = 0)
   {
-    if (buffer && k_view.need_sync_host()) {
-      pinned_mirror_type tmp_view((typename kk_view::value_type*)buffer, typename kk_view::array_layout());
+    if (h_viewkk.data() && buffer && k_view.need_sync_host()) {
+      pinned_mirror_type tmp_view((typename kk_view::value_type*)buffer, d_view.layout());
       Kokkos::deep_copy(LMPHostType(),tmp_view,d_view);
       Kokkos::deep_copy(LMPHostType(),h_viewkk,tmp_view);
       k_view.clear_sync_state();
@@ -835,7 +835,7 @@ struct TransformView {
 
       if (modified_device_legacy) {
         if (buffer) {
-          pinned_mirror_type tmp_view((typename kk_view::value_type*)buffer, typename kk_view::array_layout());
+          pinned_mirror_type tmp_view((typename kk_view::value_type*)buffer, d_view.layout());
           Kokkos::deep_copy(LMPHostType(),tmp_view,d_view);
           Kokkos::deep_copy(LMPHostType(),h_view,tmp_view);
           if (!async_flag) Kokkos::fence();
@@ -925,12 +925,12 @@ struct TransformView {
 
   bool need_sync_device()
   {
-    return (k_view.need_sync_device() || modified_device_legacy);
+    return (k_view.need_sync_device() || modified_legacy_device);
   }
 
   bool need_sync_host()
   {
-    return (k_view.need_sync_host() || modified_legacy_device || modified_legacy_hostkk || modified_hostkk_legacy);
+    return (k_view.need_sync_host() || modified_device_legacy || modified_legacy_hostkk || modified_hostkk_legacy);
   }
 
   bool need_sync_device_kk()
