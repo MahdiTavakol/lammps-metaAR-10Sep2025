@@ -26,7 +26,11 @@
 #include "pointers.h"
 
 #if LMP_KOKKOS_PRECISION != 2
-#error  Must set LMP_KOKKOS_PRECISION=2 for ML-IAP Package
+#error  Must use -DLMP_KOKKOS_PRECISION=2 for ML-IAP Package
+#endif
+
+#ifndef LMP_KOKKOS_LAYOUT_RIGHT
+#error  Must use -DLMP_KOKKOS_LAYOUT_RIGHT for ML-IAP Package
 #endif
 
 namespace LAMMPS_NS {
