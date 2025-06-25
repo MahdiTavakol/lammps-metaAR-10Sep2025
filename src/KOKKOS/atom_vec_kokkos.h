@@ -162,7 +162,7 @@ class AtomVecKokkos : virtual public AtomVec {
   }
   #else
   template<class ViewType>
-  void perform_pinned_copy(ViewType& src, unsigned int space) {
+  void perform_pinned_copy(ViewType& src, unsigned int space, int async_flag = 0) {
     if (space == Device)
       src.sync_device();
     else
