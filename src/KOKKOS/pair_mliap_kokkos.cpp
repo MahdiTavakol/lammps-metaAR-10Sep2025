@@ -419,13 +419,8 @@ int PairMLIAPKokkos<DeviceType>::pack_forward_comm_kokkos(
 template <class DeviceType>
 template <typename CommType>
 int PairMLIAPKokkos<DeviceType>::pack_forward_comm_kokkos(
-<<<<<<< kk_fp32
-    int nv, DAT::tdual_int_1d idx_v, DAT::tdual_double_1d &fill, int int2,
-    int *intp, CommType *copy_to) {
-=======
-  int nv, DAT::tdual_int_1d idx_v, DAT::tdual_xfloat_1d &fill, int /*int2*/,
-  int */*intp*/, CommType *copy_to) {
->>>>>>> develop
+  int nv, DAT::tdual_int_1d idx_v, DAT::tdual_double_1d &fill, int /*int2*/,
+  int* /*intp*/, CommType *copy_to) {
   auto idx=idx_v.view<DeviceType>();
   auto val=fill.view<DeviceType>();
   int nf=vec_len;
