@@ -357,17 +357,21 @@ public:
 
 // define precision
 
-#ifndef LMP_KOKKOS_PRECISION
-#define LMP_KOKKOS_PRECISION 2
+// LMP_KOKKOS_SINGLE_SINGLE: Single precision for all calculations
+// LMP_KOKKOS_DOUBLE_DOUBLE: Double precision for all calculations
+// LMP_KOKKOS_SINGLE_DOUBLE: Accumulation of forces, etc. in double
+
+#ifndef LMP_KOKKOS_DOUBLE_DOUBLE
+#define LMP_KOKKOS_DOUBLE_DOUBLE
 #endif
 
-#if LMP_KOKKOS_PRECISION == 1 // single
+#if defined (LMP_KOKKOS_SINGLE_SINGLE) // single
 typedef float KK_FLOAT;
 typedef float KK_SUM_FLOAT;
-#elif LMP_KOKKOS_PRECISION == 2 // double
+#elif defined (LMP_KOKKOS_DOUBLE_DOUBLE)  // double
 typedef double KK_FLOAT;
 typedef double KK_SUM_FLOAT;
-#elif LMP_KOKKOS_PRECISION == 3 // mixed
+#elif defined (LMP_KOKKOS_SINGLE_DOUBLE) // mixed
 typedef float KK_FLOAT;
 typedef double KK_SUM_FLOAT;
 #endif
