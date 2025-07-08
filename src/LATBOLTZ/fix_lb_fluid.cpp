@@ -360,7 +360,7 @@ FixLbFluid::FixLbFluid(LAMMPS *lmp, int narg, char **arg) :
   // perform initial allocation of atom-based array register
   // with Atom class
   //--------------------------------------------------------------------------
-  grow_arrays(atom->nmax);
+  FixLbFluid::grow_arrays(atom->nmax);
   atom->add_callback(Atom::GROW);
 
   for (int i = 0; i < atom->nmax; i++) {
@@ -2425,9 +2425,9 @@ void FixLbFluid::dump(const bigint step)
             velocity_2_fort[2 + 3 * (i + (subNbx + 3) * (j + (subNby + 3) * k))] = u_lb[i][j][k][2];
           }
 
-      MPI_File_write_all(dump_file_handle_raw, &density_2_fort[0], 1, fluid_density_2_mpitype,
+      MPI_File_write_all(dump_file_handle_raw, density_2_fort.data(), 1, fluid_density_2_mpitype,
                          MPI_STATUS_IGNORE);
-      MPI_File_write_all(dump_file_handle_raw, &velocity_2_fort[0], 1, fluid_velocity_2_mpitype,
+      MPI_File_write_all(dump_file_handle_raw, velocity_2_fort.data(), 1, fluid_velocity_2_mpitype,
                          MPI_STATUS_IGNORE);
 
       // For C output use the following but switch to MPI_ORDER_C in mpiTypeXXXWrite

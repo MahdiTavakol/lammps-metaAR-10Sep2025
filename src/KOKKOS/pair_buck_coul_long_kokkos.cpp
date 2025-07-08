@@ -202,7 +202,7 @@ compute_fcoul(const KK_FLOAT& rsq, const int& /*i*/, const int&j,
     union_int_float_t rsq_lookup;
     rsq_lookup.f = rsq;
     const int itable = (rsq_lookup.i & ncoulmask) >> ncoulshiftbits;
-    const KK_FLOAT fraction = (rsq_lookup.f - d_rtable[itable]) * d_drtable[itable];
+    const KK_FLOAT fraction = ((KK_FLOAT)rsq_lookup.f - d_rtable[itable]) * d_drtable[itable];
     const KK_FLOAT table = d_ftable[itable] + fraction*d_dftable[itable];
     KK_FLOAT forcecoul = qtmp*q[j] * table;
     if (factor_coul < 1.0) {
@@ -241,7 +241,7 @@ compute_ecoul(const KK_FLOAT& rsq, const int& /*i*/, const int&j,
     union_int_float_t rsq_lookup;
     rsq_lookup.f = rsq;
     const int itable = (rsq_lookup.i & ncoulmask) >> ncoulshiftbits;
-    const KK_FLOAT fraction = (rsq_lookup.f - d_rtable[itable]) * d_drtable[itable];
+    const KK_FLOAT fraction = ((KK_FLOAT)rsq_lookup.f - d_rtable[itable]) * d_drtable[itable];
     const KK_FLOAT table = d_etable[itable] + fraction*d_detable[itable];
     KK_FLOAT ecoul = qtmp*q[j] * table;
     if (factor_coul < 1.0) {
