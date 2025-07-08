@@ -324,7 +324,7 @@ void ComputeSNAGridKokkos<DeviceType, real_type, vector_length>::compute_array()
   copymode = 0;
 
   k_grid.template modify<DeviceType>();
-  k_grid.template sync_host();
+  k_grid.sync_host();
 
   MPI_Allreduce(&grid[0][0], &gridall[0][0], size_array_rows * size_array_cols, MPI_DOUBLE, MPI_SUM,
                 world);
