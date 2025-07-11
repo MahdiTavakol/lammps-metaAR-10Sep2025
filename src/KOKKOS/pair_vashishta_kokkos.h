@@ -132,8 +132,8 @@ class PairVashishtaKokkos : public PairVashishta {
   typename AT::t_kkfloat_1d_6 d_vatom;
 
   typename AT::t_int_1d_randomread d_type2frho;
-  typename AT::t_int_2d_randomread d_type2rhor;
-  typename AT::t_int_2d_randomread d_type2z2r;
+  typename AT::t_int_2d_dl_randomread d_type2rhor;
+  typename AT::t_int_2d_dl_randomread d_type2z2r;
 
   typename AT::t_neighbors_2d d_neighbors;
   typename AT::t_int_1d_randomread d_ilist;
@@ -144,9 +144,9 @@ class PairVashishtaKokkos : public PairVashishta {
   int nlocal,nall,eflag,vflag;
 
   int inum;
-  typename AT::t_int_2d d_neighbors_short_2body;
+  typename AT::t_int_2d_dl d_neighbors_short_2body;
   typename AT::t_int_1d d_numneigh_short_2body;
-  typename AT::t_int_2d d_neighbors_short_3body;
+  typename AT::t_int_2d_dl d_neighbors_short_3body;
   typename AT::t_int_1d d_numneigh_short_3body;
   friend void pair_virial_fdotr_compute<PairVashishtaKokkos>(PairVashishtaKokkos*);
 };

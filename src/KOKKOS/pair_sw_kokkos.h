@@ -124,8 +124,8 @@ class PairSWKokkos : public PairSW {
   NonDupScatterView<KK_FLOAT*[6], typename DAT::t_kkfloat_1d_6::array_layout> ndup_vatom;
 
   typename AT::t_int_1d_randomread d_type2frho;
-  typename AT::t_int_2d_randomread d_type2rhor;
-  typename AT::t_int_2d_randomread d_type2z2r;
+  typename AT::t_int_2d_dl_randomread d_type2rhor;
+  typename AT::t_int_2d_dl_randomread d_type2z2r;
 
   typename AT::t_neighbors_2d d_neighbors;
   typename AT::t_int_1d_randomread d_ilist;
@@ -136,7 +136,7 @@ class PairSWKokkos : public PairSW {
   int nlocal,nall,eflag,vflag;
 
   int inum;
-  typename AT::t_int_2d d_neighbors_short;
+  typename AT::t_int_2d_dl d_neighbors_short;
   typename AT::t_int_1d d_numneigh_short;
 
 
