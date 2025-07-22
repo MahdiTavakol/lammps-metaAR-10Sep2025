@@ -600,17 +600,16 @@ acceleration is available and enabled by default.
 Prerequisites and portability
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-LAMMPS-GUI is programmed in C++ based on the C++11 standard and using
+LAMMPS-GUI is programmed in C++ based on the C++17 standard and using
 the `Qt GUI framework <https://www.qt.io/product/framework>`_.
-Currently, Qt version 5.12 or later is required; Qt 5.15LTS is
-recommended; support for Qt version 6.x is available.  Building LAMMPS
-with CMake is required.
+Currently, Qt version 5.15LTS or later is required; support for Qt
+version 6.x is available.  Building LAMMPS with CMake is required.
 
 The LAMMPS-GUI has been successfully compiled and tested on:
 
-- Ubuntu Linux 20.04LTS x86_64 using GCC 9, Qt version 5.12
-- Fedora Linux 41 x86\_64 using GCC 14 and Clang 17, Qt version 5.15LTS
-- Fedora Linux 41 x86\_64 using GCC 14, Qt version 6.8
+- Ubuntu Linux 22.04LTS x86_64 using GCC 11, Qt version 5.15LTS
+- Fedora Linux 42 x86\_64 using GCC 15 and Clang 20, Qt version 5.15LTS
+- Fedora Linux 42 x86\_64 using GCC 15, Qt version 6.9
 - Apple macOS 12 (Monterey) and macOS 13 (Ventura) with Xcode on arm64 and x86\_64, Qt version 5.15LTS
 - Windows 10 and 11 x86_64 with Visual Studio 2022 and Visual C++ 14.36, Qt version 5.15LTS
 - Windows 10 and 11 x86_64 with Visual Studio 2022 and Visual C++ 14.40, Qt version 6.7

@@ -2028,7 +2028,7 @@ code when using features from the INTEL package.
       .. code-block:: bash
 
          -D INTEL_ARCH=value     # value = cpu (default) or knl
-         -D INTEL_LRT_MODE=value # value = threads, none, or c++11
+         -D INTEL_LRT_MODE=value # value = threads, none, or c++17
 
    .. tab:: Traditional make
 
@@ -2059,8 +2059,8 @@ In Long-range thread mode (LRT) a modified verlet style is used, that
 operates the Kspace calculation in a separate thread concurrently to
 other calculations. This has to be enabled in the :doc:`package intel
 <package>` command at runtime. With the setting "threads" it used the
-pthreads library, while "c++11" will use the built-in thread support
-of C++11 compilers. The option "none" skips compilation of this
+pthreads library, while "c++17" will use the built-in thread support
+of C++17 compilers. The option "none" skips compilation of this
 feature. The default is to use "threads" if pthreads is available and
 otherwise "none".
 
