@@ -23,8 +23,8 @@ endif()
 target_compile_definitions(lammps PRIVATE -DLMP_KOKKOS_${KOKKOS_PREC_SETTING})
 
 # Set Kokkos View Layout
-set(KOKKOS_LAYOUT "right" CACHE STRING "LAMMPS KOKKOS view layout")
-set(KOKKOS_LAYOUT_VALUES right default)
+set(KOKKOS_LAYOUT "legacy" CACHE STRING "LAMMPS KOKKOS view layout")
+set(KOKKOS_LAYOUT_VALUES legacy default)
 set_property(CACHE KOKKOS_LAYOUT PROPERTY STRINGS ${KOKKOS_LAYOUT_VALUES})
 validate_option(KOKKOS_LAYOUT KOKKOS_LAYOUT_VALUES)
 string(TOUPPER ${KOKKOS_LAYOUT} KOKKOS_LAYOUT)
