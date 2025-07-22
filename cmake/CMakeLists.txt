@@ -2,7 +2,7 @@
 ########################################
 # CMake build system
 # This file is part of LAMMPS
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.20)
 ########################################
 # initialize version variables with project command
 if(POLICY CMP0048)
@@ -141,25 +141,26 @@ if((PKG_KOKKOS) AND (Kokkos_ENABLE_CUDA) AND NOT
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Xcudafe --diag_suppress=unrecognized_pragma,--diag_suppress=128")
 endif()
 
-# we *require* C++11 without extensions but prefer C++17.
-# Kokkos requires at least C++17 (currently)
+# We *require* C++17 without extensions
+# Kokkos also requires at least C++17 (currently)
 if(NOT CMAKE_CXX_STANDARD)
-  if(cxx_std_17 IN_LIST CMAKE_CXX_COMPILE_FEATURES)
+# uncomment in case we plan to switch to C++20 as minimum standard
+#  if(cxx_std_20 IN_LIST CMAKE_CXX_COMPILE_FEATURES)
+#    set(CMAKE_CXX_STANDARD 20)
+#  else()
     set(CMAKE_CXX_STANDARD 17)
-  else()
-    set(CMAKE_CXX_STANDARD 11)
-  endif()
+#  endif()
 endif()
-if(CMAKE_CXX_STANDARD LESS 11)
-  message(FATAL_ERROR "C++ standard must be set to at least 11")
+if(CMAKE_CXX_STANDARD LESS 17)
+  message(FATAL_ERROR "C++ standard must be set to at least 17")
 endif()
 if(PKG_KOKKOS AND (CMAKE_CXX_STANDARD LESS 17))
   set(CMAKE_CXX_STANDARD 17)
 endif()
-# turn off C++17 check in lmptype.h
-if(LAMMPS_CXX11)
-  add_compile_definitions(LAMMPS_CXX11)
-endif()
+# turn off C++20 check in lmptype.h
+#if(LAMMPS_CXX17)
+#  add_compile_definitions(LAMMPS_CXX17)
+#endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Use compiler extensions")
 # ugly hacks for MSVC which by default always reports an old C++ standard in the __cplusplus macro
