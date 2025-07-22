@@ -86,8 +86,8 @@ KokkosLMP::KokkosLMP(LAMMPS *lmp, int narg, char **arg) : Pointers(lmp)
   // layout
 
   if (me == 0)
-#ifdef LMP_KOKKOS_LAYOUT_RIGHT
-    utils::logmesg(lmp,"  using view layout = right\n");
+#ifdef LMP_KOKKOS_LAYOUT_LEGACY
+    utils::logmesg(lmp,"  using view layout = legacy\n");
 #else
     utils::logmesg(lmp,"  using view layout = default\n");
 #endif

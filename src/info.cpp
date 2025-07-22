@@ -1131,8 +1131,8 @@ bool Info::has_accelerator_feature(const std::string &package,
 #endif
     }
     if (category == "layout") {
-#if defined(LMP_KOKKOS_LAYOUT_RIGHT)
-      return setting == "right";
+#if defined(LMP_KOKKOS_LAYOUT_LEGACY)
+      return setting == "legacy";
 #else
       return setting == "default";
 #endif
@@ -1233,7 +1233,7 @@ std::string Info::get_accelerator_info(const std::string &package)
     if (has_accelerator_feature("KOKKOS","precision","mixed"))  mesg += " mixed";
     if (has_accelerator_feature("KOKKOS","precision","double")) mesg += " double";
     mesg +=  "\nKOKKOS package view layout:";
-    if (has_accelerator_feature("KOKKOS","layout","right")) mesg += " right";
+    if (has_accelerator_feature("KOKKOS","layout","legacy")) mesg += " legacy";
     if (has_accelerator_feature("KOKKOS","layout","default"))  mesg += " default";
 #if LMP_KOKKOS
     mesg += fmt::format("\nKokkos library version: {}.{}.{}", KOKKOS_VERSION / 10000,

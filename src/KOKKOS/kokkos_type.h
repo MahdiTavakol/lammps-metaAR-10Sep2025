@@ -154,11 +154,11 @@ typedef Kokkos::HostSpace::execution_space LMPHostType;
 
 // set default device layout
 
-#if !defined (LMP_KOKKOS_LAYOUT_RIGHT) && !defined (LMP_KOKKOS_LAYOUT_DEFAULT)
-#define LMP_KOKKOS_LAYOUT_RIGHT
+#if !defined (LMP_KOKKOS_LAYOUT_LEGACY) && !defined (LMP_KOKKOS_LAYOUT_DEFAULT)
+#define LMP_KOKKOS_LAYOUT_LEGACY
 #endif
 
-#if defined(LMP_KOKKOS_LAYOUT_RIGHT)
+#if defined(LMP_KOKKOS_LAYOUT_LEGACY)
 typedef Kokkos::LayoutRight LMPDeviceLayout;
 #else
 typedef LMPDeviceType::array_layout LMPDeviceLayout;
@@ -1021,6 +1021,7 @@ KOKKOS_DEVICE_DUALVIEW(double*[4], Kokkos::LayoutRight, double_1d_4_lr)
 KOKKOS_DEVICE_DUALVIEW(double*[6], Kokkos::LayoutRight, double_1d_6_lr)
 KOKKOS_DEVICE_DUALVIEW(KK_FLOAT**, LMPDeviceLayout, kkfloat_2d)
 KOKKOS_DEVICE_DUALVIEW(KK_FLOAT**, Kokkos::LayoutRight, kkfloat_2d_lr)
+KOKKOS_DEVICE_DUALVIEW(KK_FLOAT**, LMPDeviceType::array_layout, kkfloat_2d_dl)
 KOKKOS_DEVICE_DUALVIEW(KK_FLOAT*[2], LMPDeviceLayout, kkfloat_1d_2)
 KOKKOS_DEVICE_DUALVIEW(KK_FLOAT*[3], LMPDeviceLayout, kkfloat_1d_3)
 KOKKOS_DEVICE_DUALVIEW(KK_FLOAT*[3], Kokkos::LayoutRight, kkfloat_1d_3_lr)
@@ -1111,6 +1112,7 @@ KOKKOS_HOST_DUALVIEW(double*[4], Kokkos::LayoutRight, double_1d_4_lr)
 KOKKOS_HOST_DUALVIEW(double*[6], Kokkos::LayoutRight, double_1d_6_lr)
 KOKKOS_HOST_DUALVIEW(KK_FLOAT**, LMPDeviceLayout, kkfloat_2d)
 KOKKOS_HOST_DUALVIEW(KK_FLOAT**, Kokkos::LayoutRight, kkfloat_2d_lr)
+KOKKOS_HOST_DUALVIEW(KK_FLOAT**, LMPDeviceType::array_layout, kkfloat_2d_dl)
 KOKKOS_HOST_DUALVIEW(KK_FLOAT*[2], LMPDeviceLayout, kkfloat_1d_2)
 KOKKOS_HOST_DUALVIEW(KK_FLOAT*[3], LMPDeviceLayout, kkfloat_1d_3)
 KOKKOS_HOST_DUALVIEW(KK_FLOAT*[3], Kokkos::LayoutRight, kkfloat_1d_3_lr)

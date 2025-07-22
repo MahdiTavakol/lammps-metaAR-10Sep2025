@@ -426,12 +426,12 @@ class PairReaxFFKokkos : public PairReaxFF {
 
   typename AT::t_kkfloat_1d d_bo_rij, d_hb_rsq, d_Deltap, d_Deltap_boc, d_total_bo, d_s;
   typename AT::t_kkfloat_1d d_Delta, d_Delta_boc, d_Delta_lp, d_dDelta_lp, d_Delta_lp_temp, d_CdDelta;
-  typename AT::t_kkfloat_2d d_BO, d_BO_s, d_BO_pi, d_BO_pi2;
-  typename AT::t_kkfloat_2d d_dln_BOp_pi, d_dln_BOp_pi2;
-  typename AT::t_kkfloat_2d d_C1dbo, d_C2dbo, d_C3dbo;
-  typename AT::t_kkfloat_2d d_C1dbopi, d_C2dbopi, d_C3dbopi, d_C4dbopi;
-  typename AT::t_kkfloat_2d d_C1dbopi2, d_C2dbopi2, d_C3dbopi2, d_C4dbopi2;
-  typename AT::t_kkfloat_2d d_dDeltap_self, d_Cdbo, d_Cdbopi, d_Cdbopi2;
+  typename AT::t_kkfloat_2d_dl d_BO, d_BO_s, d_BO_pi, d_BO_pi2;
+  typename AT::t_kkfloat_2d_dl d_dln_BOp_pi, d_dln_BOp_pi2;
+  typename AT::t_kkfloat_2d_dl d_C1dbo, d_C2dbo, d_C3dbo;
+  typename AT::t_kkfloat_2d_dl d_C1dbopi, d_C2dbopi, d_C3dbopi, d_C4dbopi;
+  typename AT::t_kkfloat_2d_dl d_C1dbopi2, d_C2dbopi2, d_C3dbopi2, d_C4dbopi2;
+  typename AT::t_kkfloat_2d_dl d_dDeltap_self, d_Cdbo, d_Cdbopi, d_Cdbopi2;
 
   int need_dup;
 
@@ -446,14 +446,14 @@ class PairReaxFFKokkos : public PairReaxFF {
   DupScatterView<KK_SUM_FLOAT*[3], typename DAT::t_kksum_1d_3::array_layout> dup_f;
   DupScatterView<KK_FLOAT*, typename DAT::t_kkfloat_1d::array_layout> dup_eatom;
   DupScatterView<KK_FLOAT*[6], typename DAT::t_kkfloat_1d_6::array_layout> dup_vatom;
-  DupScatterView<KK_FLOAT**, typename DAT::t_kkfloat_2d::array_layout> dup_dDeltap_self;
+  DupScatterView<KK_FLOAT**, typename DAT::t_kkfloat_2d_dl::array_layout> dup_dDeltap_self;
   DupScatterView<KK_FLOAT*, typename DAT::t_kkfloat_1d::array_layout> dup_total_bo;
   DupScatterView<KK_FLOAT*, typename DAT::t_kkfloat_1d::array_layout> dup_CdDelta;
 
   NonDupScatterView<KK_SUM_FLOAT*[3], typename DAT::t_kksum_1d_3::array_layout> ndup_f;
   NonDupScatterView<KK_FLOAT*, typename DAT::t_kkfloat_1d::array_layout> ndup_eatom;
   NonDupScatterView<KK_FLOAT*[6], typename DAT::t_kkfloat_1d_6::array_layout> ndup_vatom;
-  NonDupScatterView<KK_FLOAT**, typename DAT::t_kkfloat_2d::array_layout> ndup_dDeltap_self;
+  NonDupScatterView<KK_FLOAT**, typename DAT::t_kkfloat_2d_dl::array_layout> ndup_dDeltap_self;
   NonDupScatterView<KK_FLOAT*, typename DAT::t_kkfloat_1d::array_layout> ndup_total_bo;
   NonDupScatterView<KK_FLOAT*, typename DAT::t_kkfloat_1d::array_layout> ndup_CdDelta;
 
@@ -471,8 +471,8 @@ class PairReaxFFKokkos : public PairReaxFF {
   DAT::tdual_int_scalar k_resize_bo, k_resize_hb;
   typename AT::t_int_scalar d_resize_bo, d_resize_hb;
 
-  typename AT::t_kkfloat_2d d_sum_ovun;
-  typename AT::t_kkfloat_2d d_dBOp;
+  typename AT::t_kkfloat_2d_dl d_sum_ovun;
+  typename AT::t_kkfloat_2d_dl d_dBOp;
 
   int neighflag, newton_pair, maxnumneigh, maxhb, maxbo;
   int nlocal,nn,NN,eflag,vflag,acks2_flag;
