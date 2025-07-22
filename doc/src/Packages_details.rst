@@ -30,7 +30,6 @@ gives those details.
    * :ref:`AMOEBA <PKG-AMOEBA>`
    * :ref:`APIP <PKG-APIP>`
    * :ref:`ASPHERE <PKG-ASPHERE>`
-   * :ref:`ATC <PKG-ATC>`
    * :ref:`AWPMD <PKG-AWPMD>`
    * :ref:`BOCS <PKG-BOCS>`
    * :ref:`BODY <PKG-BODY>`
@@ -264,36 +263,6 @@ particle models including ellipsoids, 2d lines, and 3d triangles.
 * ``examples/ellipse``
 * https://www.lammps.org/movies.html#line
 * https://www.lammps.org/movies.html#tri
-
-----------
-
-.. _PKG-ATC:
-
-ATC package
-----------------
-
-**Contents:**
-
-ATC stands for atoms-to-continuum.  This package implements a
-:doc:`fix atc <fix_atc>` command to either couple molecular dynamics
-with continuum finite element equations or perform on-the-fly
-conversion of atomic information to continuum fields.
-
-**Authors:** Reese Jones, Jeremy Templeton, Jon Zimmerman (Sandia).
-
-**Install:**
-
-This package has :ref:`specific installation instructions <atc>` on the
-:doc:`Build extras <Build_extras>` page.  The ATC package requires that
-also the :ref:`MANYBODY <PKG-MANYBODY>` package is installed.
-
-**Supporting info:**
-
-* ``src/ATC``: filenames -> commands
-* ``src/ATC/README``
-* :doc:`fix atc <fix_atc>`
-* ``examples/PACKAGES/atc``
-* https://www.lammps.org/pictures.html#atc
 
 ----------
 

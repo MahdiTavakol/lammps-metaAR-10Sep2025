@@ -349,12 +349,10 @@ The "bigbig" setting increases the size of image flags and atom IDs over
 the default "smallbig" setting.
 
 These are limits for the core of the LAMMPS code, specific features or
-some styles may impose additional limits.  The :ref:`ATC
-<PKG-ATC>` package cannot be compiled with the "bigbig" setting.
-Also, there are limitations when using the library interface where some
-functions with known issues have been replaced by dummy calls printing a
-corresponding error message rather than crashing randomly or corrupting
-data.
+some styles may impose additional limits.  Also, there are limitations
+when using the library interface where some functions with known issues
+have been replaced by dummy calls printing a corresponding error message
+rather than crashing randomly or corrupting data.
 
 Atom IDs are not required for atomic systems which do not store bond
 topology information, though IDs are enabled by default.  The

@@ -20,7 +20,6 @@ OPT.
    * :doc:`amoeba/bitorsion <fix_amoeba_bitorsion>`
    * :doc:`amoeba/pitorsion <fix_amoeba_pitorsion>`
    * :doc:`append/atoms <fix_append_atoms>`
-   * :doc:`atc <fix_atc>`
    * :doc:`atom/swap <fix_atom_swap>`
    * :doc:`atom_weight/apip <fix_atom_weight_apip>`
    * :doc:`ave/atom <fix_ave_atom>`

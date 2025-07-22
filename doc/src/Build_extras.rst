@@ -36,7 +36,6 @@ This is the list of packages that may require additional steps.
 
    * :ref:`ADIOS <adios>`
    * :ref:`APIP <apip>`
-   * :ref:`ATC <atc>`
    * :ref:`AWPMD <awpmd>`
    * :ref:`COLVARS <colvar>`
    * :ref:`COMPRESS <compress>`
@@ -1310,74 +1309,6 @@ at: `https://github.com/ICAMS/lammps-user-pace/ <https://github.com/ICAMS/lammps
       You need to install the ML-PACE package *first* and follow
       the instructions :ref:`here <ml-pace>` before installing
       the APIP package.
-
-----------
-
-.. _atc:
-
-ATC package
--------------------------------
-
-The ATC package requires the MANYBODY package also be installed.
-
-.. tabs::
-
-   .. tab:: CMake build
-
-      No additional settings are needed besides ``-D PKG_ATC=yes``
-      and ``-D PKG_MANYBODY=yes``.
-
-   .. tab:: Traditional make
-
-      Before building LAMMPS, you must build the ATC library in
-      ``lib/atc``.  You can do this manually if you prefer; follow the
-      instructions in ``lib/atc/README``.  You can also do it in one
-      step from the ``lammps/src`` dir, using a command like these,
-      which simply invokes the ``lib/atc/Install.py`` script with the
-      specified args:
-
-      .. code-block:: bash
-
-         # print help message
-         make lib-atc
-
-         # build with GNU g++ compiler and MPI STUBS (settings as with "make serial")
-         make lib-atc args="-m serial"
-
-         # build with default MPI compiler (settings as with "make mpi")
-         make lib-atc args="-m mpi"
-
-         # build with Intel Classic compiler
-         make lib-atc args="-m icc"
-
-      The build should produce two files: ``lib/atc/libatc.a`` and
-      ``lib/atc/Makefile.lammps``.  The latter is copied from an
-      existing ``Makefile.lammps.*`` and has settings needed to build
-      LAMMPS with the ATC library.  If necessary, you can edit/create a
-      new ``lib/atc/Makefile.machine`` file for your system, which
-      should define an ``EXTRAMAKE`` variable to specify a corresponding
-      ``Makefile.lammps.<machine>`` file.
-
-      Note that the Makefile.lammps file has settings for the BLAS and
-      LAPACK linear algebra libraries.  As explained in
-      ``lib/atc/README`` these can either exist on your system, or you
-      can use the files provided in ``lib/linalg``.  In the latter case
-      you also need to build the library in ``lib/linalg`` with a
-      command like these:
-
-      .. code-block:: bash
-
-         # print help message
-         make lib-linalg
-
-         # build with GNU C++ compiler (settings as with "make serial")
-         make lib-linalg args="-m serial"
-
-         # build with default MPI C++ compiler (settings as with "make mpi")
-         make lib-linalg args="-m mpi"
-
-         # build with GNU Fortran compiler
-         make lib-linalg args="-m g++"
 
 ----------
 

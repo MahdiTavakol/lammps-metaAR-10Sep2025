@@ -265,7 +265,6 @@ set(STANDARD_PACKAGES
   AMOEBA
   APIP
   ASPHERE
-  ATC
   AWPMD
   BOCS
   BODY
@@ -440,7 +439,6 @@ endif()
 # "hard" dependencies between packages resulting
 # in an error instead of skipping over files
 pkg_depends(ML-IAP ML-SNAP)
-pkg_depends(ATC MANYBODY)
 pkg_depends(LATBOLTZ MPI)
 pkg_depends(SCAFACOS MPI)
 pkg_depends(AMOEBA KSPACE)
@@ -518,7 +516,7 @@ if((CMAKE_CXX_COMPILER_ID STREQUAL "Intel") AND (CMAKE_CXX_STANDARD GREATER_EQUA
           PROPERTIES COMPILE_OPTIONS "-std=c++14")
 endif()
 
-if(PKG_ATC OR PKG_AWPMD OR PKG_ML-QUIP OR PKG_ML-POD OR PKG_ELECTRODE OR PKG_RHEO OR BUILD_TOOLS)
+if(PKG_AWPMD OR PKG_ML-QUIP OR PKG_ML-POD OR PKG_ELECTRODE OR PKG_RHEO OR BUILD_TOOLS)
   if (NOT USE_INTERNAL_LINALG)
     find_package(LAPACK)
     find_package(BLAS)
@@ -688,7 +686,7 @@ endforeach()
 ##############################################
 # add lib sources of (simple) enabled packages
 ############################################
-foreach(PKG_LIB POEMS ATC AWPMD H5MD)
+foreach(PKG_LIB POEMS AWPMD H5MD)
   if(PKG_${PKG_LIB})
     string(TOLOWER "${PKG_LIB}" PKG_LIB)
     file(GLOB_RECURSE ${PKG_LIB}_SOURCES CONFIGURE_DEPENDS
@@ -712,19 +710,6 @@ endif()
 
 if(PKG_AWPMD)
   target_link_libraries(awpmd PRIVATE ${LAPACK_LIBRARIES})
-endif()
-
-if(PKG_ATC)
-  if(LAMMPS_SIZES STREQUAL "BIGBIG")
-    message(FATAL_ERROR "The ATC Package is not compatible with -DLAMMPS_BIGBIG")
-  endif()
-  if(BUILD_MPI)
-    target_link_libraries(atc PRIVATE ${LAPACK_LIBRARIES} MPI::MPI_CXX)
-  else()
-    target_link_libraries(atc PRIVATE ${LAPACK_LIBRARIES} mpi_stubs)
-  endif()
-  target_include_directories(atc PRIVATE ${LAMMPS_SOURCE_DIR})
-  target_compile_definitions(atc PRIVATE -DLAMMPS_${LAMMPS_SIZES})
 endif()
 
 if(PKG_H5MD)

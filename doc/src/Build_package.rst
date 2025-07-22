@@ -36,7 +36,6 @@ packages:
    :columns: 6
 
    * :ref:`ADIOS <adios>`
-   * :ref:`ATC <atc>`
    * :ref:`AWPMD <awpmd>`
    * :ref:`COLVARS <colvar>`
    * :ref:`COMPRESS <compress>`
@@ -276,7 +275,7 @@ package`` will list all the these commands.
    Installing or uninstalling a package for the make based build process
    works by simply copying files back and forth between the main source
    directory src and the subdirectories with the package name (e.g.
-   src/KSPACE, src/ATC), so that the files are included or excluded
+   src/KSPACE, src/MANYBODY), so that the files are included or excluded
    when LAMMPS is built.  Only source files in the src folder will be
    compiled.
 

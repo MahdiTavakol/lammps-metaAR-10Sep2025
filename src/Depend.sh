@@ -139,7 +139,6 @@ if (test $1 = "LEPTON") then
 fi
 
 if (test $1 = "MANYBODY") then
-  depend ATC
   depend GPU
   depend INTEL
   depend KOKKOS

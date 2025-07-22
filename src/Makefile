@@ -138,7 +138,6 @@ PACKAGE = \
 	voronoi \
 	vtk \
 	yaff \
-	atc \
 	dielectric \
 	electrode \
 	ml-iap \
@@ -221,7 +220,6 @@ PACKLIB = \
 	voronoi \
 	adios \
 	apip \
-	atc \
 	awpmd \
 	colvars \
 	h5md \
@@ -244,7 +242,7 @@ PACKLIB = \
 
 PACKSYS = compress latboltz python
 
-PACKINT = atc awpmd colvars electrode gpu kokkos lepton ml-pod poems
+PACKINT = awpmd colvars electrode gpu kokkos lepton ml-pod poems
 
 PACKEXT = \
 	adios \

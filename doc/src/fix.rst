@@ -199,7 +199,6 @@ accelerated styles exist.
 * :doc:`amoeba/bitorsion <fix_amoeba_bitorsion>` - torsion/torsion terms in AMOEBA force field
 * :doc:`amoeba/pitorsion <fix_amoeba_pitorsion>` - 6-body terms in AMOEBA force field
 * :doc:`append/atoms <fix_append_atoms>` - append atoms to a running simulation
-* :doc:`atc <fix_atc>` - initiates a coupled MD/FE simulation
 * :doc:`atom/swap <fix_atom_swap>` - Monte Carlo atom type swapping
 * :doc:`atom_weight/apip <fix_atom_weight_apip>` - compute atomic load of an :doc:`APIP potential <Howto_apip>` for load balancing
 * :doc:`ave/atom <fix_ave_atom>` - compute per-atom time-averaged quantities

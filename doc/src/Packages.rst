@@ -60,11 +60,6 @@ whether an extra library is needed to build and use the package:
      - :doc:`Howto spherical <Howto_spherical>`
      - ellipse
      - no
-   * - :ref:`ATC <PKG-ATC>`
-     - Atom-to-Continuum coupling
-     - :doc:`fix atc <fix_atc>`
-     - ``PACKAGES/atc``
-     - int
    * - :ref:`AWPMD <PKG-AWPMD>`
      - wave packet MD
      - :doc:`pair_style awpmd/cut <pair_awpmd>`
