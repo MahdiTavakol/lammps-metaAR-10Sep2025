@@ -941,9 +941,9 @@ can be one of: ``legacy`` (mostly LayoutRight, default) or ``default``
 (mostly LayoutLeft). Similarly the makefile settings
 ``-DLMP_KOKKOS_LAYOUT_LEGACY`` (default) and
 ``-DLMP_KOKKOS_LAYOUT_DEFAULT`` set legacy or default layouts
-respectively. Using the default layout can give speedup on GPUs for
-some models, but a slowdown for others. LayoutRight is always used for
-CPUs.
+respectively. Using the default layout (LayoutLeft) can give speedup
+on GPUs for some models, but a slowdown for others. LayoutRight is
+always used when compiling exclusively for CPUs.
 
 ----------
 
