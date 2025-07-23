@@ -63,8 +63,6 @@ PACKAGE = \
 	cg-spica \
 	class2 \
 	colloid \
-	colvars \
-	compress \
 	coreshell \
 	diffraction \
 	dipole \
@@ -83,7 +81,6 @@ PACKAGE = \
 	fep \
 	gpu \
 	granular \
-	h5md \
 	intel \
 	interlayer \
 	kim \
@@ -137,7 +134,6 @@ PACKAGE = \
 	vtk \
 	yaff \
 	dielectric \
-	electrode \
 	ml-iap \
 	phonon
 
