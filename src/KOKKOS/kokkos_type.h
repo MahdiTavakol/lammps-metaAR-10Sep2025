@@ -638,10 +638,10 @@ struct TransformView {
                  LMPPinnedHostType,typename kk_view::memory_space>::type,
                Kokkos::MemoryTraits<Kokkos::Unmanaged> > pinned_mirror_type;
 
-  int modified_legacy_device;
-  int modified_device_legacy;
-  int modified_legacy_hostkk;
-  int modified_hostkk_legacy;
+  int modified_hostkk_legacy; // Kokkos host was modified wrt legacy host
+  int modified_device_legacy; // device was modified wrt legacy host
+  int modified_legacy_hostkk; // legacy host was modified wrt Kokkos host
+  int modified_legacy_device; // legacy host was modified wrt device
 
   TransformView() {
     modified_hostkk_legacy = 0;
@@ -671,6 +671,11 @@ struct TransformView {
 
   template <typename... Indices>
   void resize(Indices... ns) {
+    if (modified_legacy_device) {
+      sync_hostkk();
+      k_view.modify_host(); // force resize on host
+    }
+
     k_view.resize(ns...);
     d_view = k_view.d_view;
     h_viewkk = k_view.h_view;
@@ -681,6 +686,8 @@ struct TransformView {
     } else
       h_view = h_viewkk;
   }
+
+  // mark device as modified wrt legacy
 
   void modify_device_legacy()
   {
@@ -699,6 +706,8 @@ struct TransformView {
       }
     }
   }
+
+  // mark device as modified wrt all
 
   void modify_device()
   {
@@ -722,6 +731,8 @@ struct TransformView {
       }
     }
   }
+
+  // mark Kokkos host as modified wrt all
 
   void modify_hostkk()
   {
@@ -747,6 +758,8 @@ struct TransformView {
     }
   }
 
+  // mark legacy host modified wrt Kokkos host
+
   void modify_legacy_hostkk()
   {
     if constexpr (NEED_TRANSFORM) {
@@ -764,6 +777,8 @@ struct TransformView {
       }
     }
   }
+
+  // mark legacy host as modified wrt all
 
   void modify_host() {
     if constexpr (NEED_TRANSFORM) {
@@ -783,6 +798,12 @@ struct TransformView {
           pinned_mirror_type tmp_view((typename kk_view::value_type*)buffer, d_view.layout());
           Kokkos::deep_copy(LMPHostType(),tmp_view,h_view);
           Kokkos::deep_copy(LMPHostType(),d_view,tmp_view);
+
+          if (modified_legacy_hostkk || modified_hostkk_legacy)
+            k_view.modify_device();
+          else
+            k_view.clear_sync_state();
+
           if (!async_flag) Kokkos::fence();
         } else {
           Kokkos::deep_copy(h_viewkk,h_view);
@@ -796,9 +817,24 @@ struct TransformView {
     }
   }
 
+  // sync all to device
+
   void sync_device(void* buffer = nullptr, int async_flag = 0)
   {
-    if (d_view.data() && buffer && k_view.need_sync_device()) {
+    if (!d_view.data()) return;
+
+    if constexpr (NEED_TRANSFORM) {
+      if (modified_legacy_device && k_view.need_sync_device()) {
+        std::string msg = "TransformView::modify ERROR: ";
+        msg += "Concurrent modification of views that sync to Kokkos device view ";
+        msg += "in TransformView \"";
+        msg += d_view.label();
+        msg += "\"\n";
+        Kokkos::abort(msg.c_str());
+      }
+    }
+
+    if (buffer && k_view.need_sync_device()) {
       pinned_mirror_type tmp_view((typename kk_view::value_type*)buffer, d_view.layout());
       Kokkos::deep_copy(LMPHostType(),tmp_view,h_viewkk);
       Kokkos::deep_copy(LMPHostType(),d_view,tmp_view);
@@ -811,22 +847,41 @@ struct TransformView {
     sync_legacy_to_device(buffer,async_flag);
   }
 
+  // sync legacy host to Kokkos host
+
   void sync_legacy_to_hostkk() {
     if constexpr (NEED_TRANSFORM) {
       if (!h_viewkk.data()) return;
 
       if (modified_legacy_hostkk) {
         Kokkos::deep_copy(h_viewkk,h_view);
-        if (modified_legacy_device)
+        if (modified_legacy_device || modified_device_legacy)
           k_view.modify_host();
+        else 
+          k_view.clear_sync_state();
         modified_legacy_hostkk = 0;
       }
     }
   }
 
+  // sync all to Kokkos host
+
   void sync_hostkk(void* buffer = nullptr, int async_flag = 0)
   {
-    if (h_viewkk.data() && buffer && k_view.need_sync_host()) {
+    if (!h_viewkk.data()) return;
+
+    if constexpr (NEED_TRANSFORM) {
+      if (modified_legacy_hostkk && k_view.need_sync_host()) {
+        std::string msg = "TransformView::modify ERROR: ";
+        msg += "Concurrent modification of views that sync to Kokkos host view ";
+        msg += "in TransformView \"";
+        msg += d_view.label();
+        msg += "\"\n";
+        Kokkos::abort(msg.c_str());
+      }
+    }
+
+    if (buffer && k_view.need_sync_host()) {
       pinned_mirror_type tmp_view((typename kk_view::value_type*)buffer, d_view.layout());
       Kokkos::deep_copy(LMPHostType(),tmp_view,d_view);
       Kokkos::deep_copy(LMPHostType(),h_viewkk,tmp_view);
@@ -838,6 +893,8 @@ struct TransformView {
     sync_legacy_to_hostkk();
   }
 
+  // sync device to legacy host
+
   void sync_device_to_legacy(void* buffer = nullptr, int async_flag = 0)
   {
     if constexpr (NEED_TRANSFORM) {
@@ -848,6 +905,12 @@ struct TransformView {
           pinned_mirror_type tmp_view((typename kk_view::value_type*)buffer, d_view.layout());
           Kokkos::deep_copy(LMPHostType(),tmp_view,d_view);
           Kokkos::deep_copy(LMPHostType(),h_view,tmp_view);
+
+          if (k_view.need_sync_host() || k_view.need_sync_device())
+            modify_legacy_hostkk();
+          else
+            modified_legacy_hostkk = 0;
+
           if (!async_flag) Kokkos::fence();
         } else {
           k_view.modify_device();
@@ -861,6 +924,8 @@ struct TransformView {
     }
   }
 
+  // sync Kokkos host to legacy host
+
   void sync_hostkk_to_legacy()
   {
     if constexpr (NEED_TRANSFORM) {
@@ -870,14 +935,29 @@ struct TransformView {
       if (modified_hostkk_legacy) {
         Kokkos::deep_copy(h_view,h_viewkk);
         modified_hostkk_legacy = 0;
-        if (k_view.need_sync_device())
+        if (k_view.need_sync_host() || k_view.need_sync_device())
           modify_legacy_device();
+        else
+          modified_legacy_device = 0;
       }
     }
   }
 
+  // sync all to legacy host
+
   void sync_host(void* buffer = nullptr, int async_flag = 0) {
     if constexpr (NEED_TRANSFORM) {
+      if (!h_view.data()) return;
+
+      if (modified_device_legacy && modified_hostkk_legacy) {
+        std::string msg = "TransformView::modify ERROR: ";
+        msg += "Concurrent modification of views that sync to legacy host view ";
+        msg += "in TransformView \"";
+        msg += d_view.label();
+        msg += "\"\n";
+        Kokkos::abort(msg.c_str());
+      }
+
       sync_device_to_legacy(buffer,async_flag);
       sync_hostkk_to_legacy();
     } else {
