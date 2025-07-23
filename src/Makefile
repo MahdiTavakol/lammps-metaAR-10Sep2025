@@ -83,7 +83,6 @@ PACKAGE = \
 	granular \
 	intel \
 	interlayer \
-	kim \
 	kokkos \
 	latboltz \
 	manifold \
@@ -102,7 +101,6 @@ PACKAGE = \
 	ml-snap \
 	ml-uf3 \
 	mofff \
-	molfile \
 	netcdf \
 	openmp \
 	opt \
@@ -204,7 +202,6 @@ PACKMOST = \
 PACKLIB = \
 	compress \
 	gpu \
-	kim \
 	kokkos \
 	python \
 	voronoi \
@@ -215,7 +212,6 @@ PACKLIB = \
 	ml-hdnnp \
 	latboltz \
 	mdi \
-	molfile \
 	netcdf \
 	ml-pace \
 	ml-pod \
@@ -235,11 +231,9 @@ PACKEXT = \
 	adios \
 	apip \
 	h5md \
-	kim \
 	ml-hdnnp \
 	ml-pace \
 	ml-quip \
-	molfile \
 	netcdf \
 	plumed \
 	qmmm \

@@ -387,57 +387,10 @@ minutes to hours) to build.  Of course you only need to do that once.)
 
    .. tab:: Traditional make
 
-      You can download and build the KIM library manually if you prefer;
-      follow the instructions in ``lib/kim/README``.  You can also do
-      this in one step from the lammps/src directory, using a command like
-      these, which simply invokes the ``lib/kim/Install.py`` script with
-      the specified args.
+      .. versionchanged:: TBD
 
-      .. code-block:: bash
-
-         # print help message
-         make lib-kim
-
-         # (re-)install KIM API lib with only example models
-         make lib-kim args="-b"
-
-         # ditto plus one model
-         make lib-kim args="-b -a Glue_Ercolessi_Adams_Al__MO_324507536345_001"
-
-         # install KIM API lib with all models
-         make lib-kim args="-b -a everything"
-
-         # add one model or model driver
-         make lib-kim args="-n -a EAM_Dynamo_Ackland_W__MO_141627196590_002"
-
-         # use an existing KIM API installation at the provided location
-         make lib-kim args="-p <prefix>"
-
-         # ditto but add one model or driver
-         make lib-kim args="-p <prefix> -a EAM_Dynamo_Ackland_W__MO_141627196590_002"
-
-      When using the ``-b`` option, the KIM library is built using its native
-      cmake build system.  The ``lib/kim/Install.py`` script supports a
-      ``CMAKE`` environment variable if the cmake executable is named other
-      than ``cmake`` on your system.  Additional environment variables may be
-      set with the ``make`` command for use by cmake.  For example, to use the
-      ``cmake3`` executable and tell it to use the GNU version 11 compilers
-      called ``g++-11``, ``gcc-11`` and ``gfortran-11`` to build KIM, one
-      could use the following command.
-
-      .. code-block:: bash
-
-         # (re-)install KIM API lib using cmake3 and gnu v11 compilers
-         # with only example models
-         CMAKE=cmake3 CXX=g++-11 CC=gcc-11 FC=gfortran-11 make lib-kim args="-b"
-
-      Settings for debugging OpenKIM web queries discussed below need to
-      be applied by adding them to the ``LMP_INC`` variable through
-      editing the ``Makefile.machine`` you are using.  For example:
-
-      .. code-block:: make
-
-         LMP_INC = -DLMP_NO_SSL_CHECK
+      The KIM package no longer supports the the traditional make build.
+      You need to build with CMake.
 
 Debugging OpenKIM web queries in LAMMPS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1617,7 +1570,7 @@ the HDF5 library.
 
    .. tab:: Traditional make
 
-        .. versionchanged:: TBD
+      .. versionchanged:: TBD
 
       The H5MD package no longer supports the the traditional make
       build.  You need to build with CMake.
@@ -1843,17 +1796,10 @@ MOLFILE package
 
    .. tab:: Traditional make
 
-      The ``lib/molfile/Makefile.lammps`` file has a setting for a
-      dynamic loading library libdl.a that is typically present on all
-      systems.  It is required for LAMMPS to link with this package.  If
-      the setting is not valid for your system, you will need to edit
-      the Makefile.lammps file.  See ``lib/molfile/README`` and
-      ``lib/molfile/Makefile.lammps`` for details. It is also possible
-      to configure a different folder with the VMD molfile plugin header
-      files. LAMMPS ships with a couple of default headers, but these
-      are not compatible with all VMD versions, so it is often best to
-      change this setting to the location of the same include files of
-      the local VMD installation in use.
+      .. versionchanged:: TBD
+
+      The MOLFILE package no longer supports the the traditional make
+      build.  You need to build with CMake.
 
 ----------
 
