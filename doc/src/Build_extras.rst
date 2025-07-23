@@ -103,11 +103,10 @@ versions use an incompatible API and thus LAMMPS will fail to compile.
 
    .. tab:: Traditional make
 
-      To include support for Zstandard compression, ``-DLAMMPS_ZSTD``
-      must be added to the compiler flags.  If make cannot find the
-      libraries, you can edit the file ``lib/compress/Makefile.lammps``
-      to specify the paths and library names.  This must be done
-      **before** the package is installed.
+      .. versionchanged:: TBD
+
+      The COMPRESS package no longer supports the the traditional make build.
+      You need to build with CMake.
 
 ----------
 
@@ -1328,47 +1327,8 @@ This package depends on the KSPACE package.
 
    .. tab:: Traditional make
 
-      Before building LAMMPS, you must configure the ELECTRODE support
-      libraries and settings in ``lib/electrode``.  You can do this
-      manually, if you prefer, or do it in one step from the
-      ``lammps/src`` dir, using a command like these, which simply
-      invokes the ``lib/electrode/Install.py`` script with the specified
-      args:
-
-      .. code-block:: bash
-
-         # print help message
-         make lib-electrode
-
-         # build with GNU g++ compiler and MPI STUBS (settings as with "make serial")
-         make lib-electrode args="-m serial"
-
-         # build with default MPI compiler (settings as with "make mpi")
-         make lib-electrode args="-m mpi"
-
-
-      Note that the ``Makefile.lammps`` file has settings for the BLAS
-      and LAPACK linear algebra libraries.  These can either exist on
-      your system, or you can use the files provided in ``lib/linalg``.
-      In the latter case you also need to build the library in
-      ``lib/linalg`` with a command like these:
-
-      .. code-block:: bash
-
-         # print help message
-         make lib-linalg
-
-         # build with GNU C++ compiler (settings as with "make serial")
-         make lib-linalg args="-m serial"
-
-         # build with default MPI C++ compiler (settings as with "make mpi")
-         make lib-linalg args="-m mpi"
-
-         # build with GNU C++ compiler
-         make lib-linalg args="-m g++"
-
-      The package itself is activated with ``make yes-KSPACE`` and
-      ``make yes-ELECTRODE``
+      The ELECTRODE package no longer supports the the traditional make
+      build.  You need to build with CMake.
 
 ----------
 
@@ -1698,25 +1658,10 @@ the HDF5 library.
 
    .. tab:: Traditional make
 
-      Before building LAMMPS, you must build the CH5MD library in
-      ``lib/h5md``.  You can do this manually if you prefer; follow the
-      instructions in ``lib/h5md/README``.  You can also do it in one
-      step from the ``lammps/src`` dir, using a command like these,
-      which simply invokes the ``lib/h5md/Install.py`` script with the
-      specified args:
+        .. versionchanged:: TBD
 
-      .. code-block:: bash
-
-         make lib-h5md                     # print help message
-         make lib-h5md args="-m h5cc"      # build with h5cc compiler
-
-      The build should produce two files: ``lib/h5md/libch5md.a`` and
-      ``lib/h5md/Makefile.lammps``.  The latter is copied from an
-      existing ``Makefile.lammps.*`` and has settings needed to build
-      LAMMPS with the system HDF5 library.  If necessary, you can
-      edit/create a new ``lib/h5md/Makefile.machine`` file for your
-      system, which should define an EXTRAMAKE variable to specify a
-      corresponding ``Makefile.lammps.<machine>`` file.
+      The H5MD package no longer supports the the traditional make
+      build.  You need to build with CMake.
 
 ----------
 

@@ -492,7 +492,7 @@ during a run.
    library and lead to simulations using compressed output or input to
    hang or crash. For selected operations, compressed file I/O is also
    available using a compression library instead, which is what the
-   :ref:`COMPRESS package <PKG-COMPRESS>` enables.
+   :ref:`COMPRESS package <PKG-COMPRESS>` provides.
 
 --------------------------------------------------
 
