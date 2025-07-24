@@ -88,15 +88,10 @@ PACKAGE = \
 	manifold \
 	manybody \
 	mc \
-	mdi \
 	meam \
 	mesont \
 	mgpt \
 	misc \
-	ml-hdnnp \
-	ml-pace \
-	ml-pod \
-	ml-quip \
 	ml-rann \
 	ml-snap \
 	ml-uf3 \
@@ -209,15 +204,10 @@ PACKLIB = \
 	apip \
 	colvars \
 	h5md \
-	ml-hdnnp \
 	latboltz \
-	mdi \
 	netcdf \
-	ml-pace \
-	ml-pod \
 	plumed \
 	qmmm \
-	ml-quip \
 	rheo \
 	scafacos \
 	vtk \
@@ -231,9 +221,6 @@ PACKEXT = \
 	adios \
 	apip \
 	h5md \
-	ml-hdnnp \
-	ml-pace \
-	ml-quip \
 	netcdf \
 	plumed \
 	qmmm \

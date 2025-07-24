@@ -106,7 +106,7 @@ versions use an incompatible API and thus LAMMPS will fail to compile.
       .. versionchanged:: TBD
 
       The COMPRESS package no longer supports the the traditional make build.
-      You need to build with CMake.
+      You need to build LAMMPS with CMake.
 
 ----------
 
@@ -390,7 +390,7 @@ minutes to hours) to build.  Of course you only need to do that once.)
       .. versionchanged:: TBD
 
       The KIM package no longer supports the the traditional make build.
-      You need to build with CMake.
+      You need to build LAMMPS with CMake.
 
 Debugging OpenKIM web queries in LAMMPS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -907,7 +907,7 @@ included in the LAMMPS source distribution in the ``lib/lepton`` folder.
       .. versionchanged:: TBD
 
       The LEPTON package no longer supports the the traditional make build.
-      You need to build with CMake.
+      You need to build LAMMPS with CMake.
 
 ----------
 
@@ -940,7 +940,7 @@ Eigen3 is a template library, so you do not need to build it.
       .. versionchanged:: TBD
 
       The MACHDYN package no longer supports the the traditional make build.
-      You need to build with CMake.
+      You need to build LAMMPS with CMake.
 
 ----------
 
@@ -1172,9 +1172,10 @@ at: `https://github.com/ICAMS/lammps-user-pace/ <https://github.com/ICAMS/lammps
 
    .. tab:: Traditional make
 
-      You need to install the ML-PACE package *first* and follow
-      the instructions :ref:`here <ml-pace>` before installing
-      the APIP package.
+      .. versionchanged:: TBD
+
+      The APIP package no longer supports the the traditional make
+      build.  You need to build LAMMPS with CMake.
 
 ----------
 
@@ -1206,7 +1207,7 @@ module included in the LAMMPS source distribution.
       .. versionchanged:: TBD
 
       The COLVARS package no longer supports the the traditional make build.
-      You need to build with CMake.
+      You need to build LAMMPS with CMake.
 
 ----------
 
@@ -1240,7 +1241,7 @@ This package depends on the KSPACE package.
    .. tab:: Traditional make
 
       The ELECTRODE package no longer supports the the traditional make
-      build.  You need to build with CMake.
+      build.  You need to build LAMMPS with CMake.
 
 ----------
 
@@ -1276,19 +1277,10 @@ folder and then load this plugin at runtime with the :doc:`plugin command <plugi
 
    .. tab:: Traditional make
 
-      You can download and build the ML-PACE library
-      in one step from the ``lammps/src`` dir, using these commands,
-      which invoke the ``lib/pace/Install.py`` script.
+      .. versionchanged:: TBD
 
-      .. code-block:: bash
-
-         # print help message
-         make lib-pace
-
-         # download and build the default version in lib/pace
-         make lib-pace args="-b"
-
-      You should not need to edit the ``lib/pace/Makefile.lammps`` file.
+      The ML-PACE package no longer supports the the traditional make
+      build.  You need to build LAMMPS with CMake.
 
 ----------
 
@@ -1305,47 +1297,10 @@ ML-POD package
 
    .. tab:: Traditional make
 
-      Before building LAMMPS, you must configure the ML-POD support
-      settings in ``lib/mlpod``.  You can do this manually, if you
-      prefer, or do it in one step from the ``lammps/src`` dir, using a
-      command like the following, which simply invoke the
-      ``lib/mlpod/Install.py`` script with the specified args:
+      .. versionchanged:: TBD
 
-      .. code-block:: bash
-
-         # print help message
-         make lib-mlpod
-
-         # build with GNU g++ compiler and MPI STUBS (settings as with "make serial")
-         make lib-mlpod args="-m serial"
-
-         # build with default MPI compiler (settings as with "make mpi")
-         make lib-mlpod args="-m mpi"
-
-         # same as above but use the bundled linalg lib
-         make lib-mlpod args="-m mpi -e linalg"
-
-      Note that the ``Makefile.lammps`` file has settings to use the BLAS
-      and LAPACK linear algebra libraries.  These can either exist on
-      your system, or you can use the files provided in ``lib/linalg``.
-      In the latter case you also need to build the library in
-      ``lib/linalg`` with a command like these:
-
-      .. code-block:: bash
-
-         # print help message
-         make lib-linalg
-
-         # build with GNU C++ compiler (settings as with "make serial")
-         make lib-linalg args="-m serial"
-
-         # build with default MPI C++ compiler (settings as with "make mpi")
-         make lib-linalg args="-m mpi"
-
-         # build with GNU C++ compiler
-         make lib-linalg args="-m g++"
-
-      The package itself is activated with ``make yes-ML-POD``.
+      The ML-POD package no longer supports the the traditional make
+      build.  You need to build LAMMPS with CMake.
 
 ----------
 
@@ -1391,13 +1346,10 @@ within CMake will download the non-commercial use version.
 
    .. tab:: Traditional make
 
-      The download/build procedure for the QUIP library, described in
-      ``lib/quip/README`` file requires setting two environment
-      variables, ``QUIP_ROOT`` and ``QUIP_ARCH``.  These are accessed by
-      the ``lib/quip/Makefile.lammps`` file which is used when you
-      compile and link LAMMPS with this package.  You should only need
-      to edit ``Makefile.lammps`` if the LAMMPS build can not use its
-      settings to successfully build on your system.
+      .. versionchanged:: TBD
+
+      The ML-QUIP package no longer supports the the traditional make
+      build.  You need to build LAMMPS with CMake.
 
 ----------
 
@@ -1573,7 +1525,7 @@ the HDF5 library.
       .. versionchanged:: TBD
 
       The H5MD package no longer supports the the traditional make
-      build.  You need to build with CMake.
+      build.  You need to build LAMMPS with CMake.
 
 ----------
 
@@ -1614,29 +1566,10 @@ details please see ``lib/hdnnp/README`` and the `n2p2 build documentation
 
    .. tab:: Traditional make
 
-      You can download and build the *n2p2* library manually if you prefer;
-      follow the instructions in ``lib/hdnnp/README``\ . You can also do it in
-      one step from the ``lammps/src`` dir, using a command like these, which
-      simply invokes the ``lib/hdnnp/Install.py`` script with the specified args:
+      .. versionchanged:: TBD
 
-      .. code-block:: bash
-
-         # print help message
-         make lib-hdnnp
-
-         # download and build in lib/hdnnp/n2p2-...
-         make lib-hdnnp args="-b"
-
-         # download and build specific version
-         make lib-hdnnp args="-b -v 2.1.4"
-
-         # use the existing n2p2 installation in /usr/local/n2p2
-         make lib-hdnnp args="-p /usr/local/n2p2"
-
-      Note that three symbolic (soft) links, ``includelink``, ``liblink`` and
-      ``Makefile.lammps``, will be created in ``lib/hdnnp`` to point to
-      ``n2p2/include``, ``n2p2/lib`` and ``n2p2/lib/Makefile.lammps-extra``,
-      respectively. When LAMMPS is built in ``src`` it will use these links.
+      The ML-HDNNP package no longer supports the the traditional make
+      build.  You need to build LAMMPS with CMake.
 
 ----------
 
@@ -1726,17 +1659,10 @@ MDI package
 
    .. tab:: Traditional make
 
-      Before building LAMMPS, you must build the MDI Library in
-      ``lib/mdi``\ .  You can do this by executing a command like one
-      of the following from the ``lib/mdi`` directory:
+      .. versionchanged:: TBD
 
-      .. code-block:: bash
-
-         python Install.py -m gcc       # build using gcc compiler
-         python Install.py -m icc       # build using icc compiler
-
-      The build should produce two files: ``lib/mdi/includelink/mdi.h``
-      and ``lib/mdi/liblink/libmdi.so``\ .
+      The MDI package no longer supports the the traditional make build.
+      You need to build LAMMPS with CMake.
 
 ----------
 
@@ -1799,7 +1725,7 @@ MOLFILE package
       .. versionchanged:: TBD
 
       The MOLFILE package no longer supports the the traditional make
-      build.  You need to build with CMake.
+      build.  You need to build LAMMPS with CMake.
 
 ----------
 
