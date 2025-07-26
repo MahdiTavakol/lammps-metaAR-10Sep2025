@@ -53,7 +53,6 @@ PACKAGE = \
 	kspace \
 	adios \
 	amoeba \
-	apip \
 	asphere \
 	bocs \
 	body \
@@ -79,7 +78,6 @@ PACKAGE = \
 	extra-molecule \
 	extra-pair \
 	fep \
-	gpu \
 	granular \
 	intel \
 	interlayer \
@@ -96,22 +94,18 @@ PACKAGE = \
 	ml-snap \
 	ml-uf3 \
 	mofff \
-	netcdf \
 	openmp \
 	opt \
 	orient \
 	peri \
-	plugin \
 	plumed \
 	ptm \
-	python \
 	qeq \
 	qmmm \
 	qtb \
 	reaction \
 	reaxff \
 	replica \
-	rheo \
 	rigid \
 	scafacos \
 	shock \
@@ -121,8 +115,6 @@ PACKAGE = \
 	srd \
 	tally \
 	uef \
-	voronoi \
-	vtk \
 	yaff \
 	dielectric \
 	ml-iap \
@@ -195,39 +187,22 @@ PACKMOST = \
 # they depend on other packages to be installed first.
 
 PACKLIB = \
-	compress \
-	gpu \
 	kokkos \
-	python \
-	voronoi \
 	adios \
-	apip \
-	colvars \
-	h5md \
 	latboltz \
-	netcdf \
 	plumed \
 	qmmm \
-	rheo \
-	scafacos \
-	vtk \
-	electrode
+	scafacos
 
-PACKSYS = compress latboltz python
+PACKSYS = latboltz
 
-PACKINT = colvars electrode gpu kokkos ml-pod
+PACKINT = kokkos
 
 PACKEXT = \
 	adios \
-	apip \
-	h5md \
-	netcdf \
 	plumed \
 	qmmm \
-	rheo \
-	scafacos \
-	voronoi \
-	vtk \
+	scafacos
 
 # Helper GNU make function for conversion to upper case without using shell commands
 uppercase_TABLE:=a,A b,B c,C d,D e,E f,F g,G h,H i,I j,J k,K l,L m,M n,N o,O p,P q,Q r,R s,S t,T u,U v,V w,W x,X y,Y z,Z

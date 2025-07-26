@@ -1048,10 +1048,10 @@ for additional details.
 
    .. tab:: Traditional make
 
-      The build uses the ``lib/python/Makefile.lammps`` file in the
-      compile/link process to find Python.  You should only need to
-      create a new ``Makefile.lammps.*`` file (and copy it to
-      ``Makefile.lammps``) if the LAMMPS build fails.
+      .. versionchanged:: TBD
+
+      The PYTHON package no longer supports the the traditional make build.
+      You need to build LAMMPS with CMake.
 
 ----------
 
@@ -1087,31 +1087,10 @@ binary package provided by your operating system.
 
    .. tab:: Traditional make
 
-      You can download and build the Voro++ library manually if you
-      prefer; follow the instructions in ``lib/voronoi/README``.  You
-      can also do it in one step from the ``lammps/src`` dir, using a
-      command like these, which simply invokes the
-      ``lib/voronoi/Install.py`` script with the specified args:
+      .. versionchanged:: TBD
 
-      .. code-block:: bash
-
-         # print help message
-         make lib-voronoi
-
-         # download and build the default version in lib/voronoi/voro++-<version>
-         make lib-voronoi args="-b"
-
-         # use existing Voro++ installation in $HOME/voro++
-         make lib-voronoi args="-p $HOME/voro++"
-
-         # download and build the 0.4.6 version in lib/voronoi/voro++-0.4.6
-         make lib-voronoi args="-b -v voro++0.4.6"
-
-      Note that two symbolic (soft) links, ``includelink`` and
-      ``liblink``, are created in lib/voronoi to point to the Voro++
-      source dir.  When LAMMPS builds in ``src`` it will use these
-      links.  You should not need to edit the
-      ``lib/voronoi/Makefile.lammps`` file.
+      The VORONOI package no longer supports the the traditional make build.
+      You need to build LAMMPS with CMake.
 
 ----------
 
@@ -1758,11 +1737,10 @@ on your system.
 
    .. tab:: Traditional make
 
-      The ``lib/netcdf/Makefile.lammps`` file has settings for NetCDF
-      include and library files which LAMMPS needs to build with this
-      package.  If the settings are not valid for your system, you will
-      need to edit the ``Makefile.lammps`` file.  See
-      ``lib/netcdf/README`` for details.
+      .. versionchanged:: TBD
+
+      The NETCDF package no longer supports the the traditional make build.
+      You need to build LAMMPS with CMake.
 
 ----------
 
@@ -1927,13 +1905,10 @@ This package depends on the BPM package.
 
    .. tab:: Traditional make
 
-      The RHEO package requires LAPACK (and BLAS) which can be either
-      a system provided library or the bundled "linalg" library. This
-      is a subset of LAPACK translated to C++.  For that, one of the
-      provided ``Makefile.lammps.<config>`` files needs to be copied
-      to ``Makefile.lammps`` and edited as needed.  The default file
-      uses the bundled "linalg" library, which can be built by
-      ``make lib-linalg args='-m serial'`` in the ``src`` folder.
+      .. versionchanged:: TBD
+
+      The RHEO package no longer supports the the traditional make build.
+      You need to build LAMMPS with CMake.
 
 ----------
 
@@ -2011,10 +1986,7 @@ your system.
 
    .. tab:: Traditional make
 
-      The ``lib/vtk/Makefile.lammps`` file has settings for accessing
-      VTK files and its library, which LAMMPS needs to build with this
-      package.  If the settings are not valid for your system, check if
-      one of the other ``lib/vtk/Makefile.lammps.*`` files is compatible
-      and copy it to Makefile.lammps.  If none of the provided files
-      work, you will need to edit the ``Makefile.lammps`` file.  See
-      ``lib/vtk/README`` for details.
+      .. versionchanged:: TBD
+
+      The VTK package no longer supports the the traditional make build.
+      You need to build LAMMPS with CMake.
