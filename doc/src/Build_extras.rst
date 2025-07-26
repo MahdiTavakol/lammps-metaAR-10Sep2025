@@ -1910,27 +1910,10 @@ To build with this package, you must download and build the
 
    .. tab:: Traditional make
 
-      You can download and build the ScaFaCoS library manually if you
-      prefer; follow the instructions in ``lib/scafacos/README``.  You
-      can also do it in one step from the ``lammps/src`` dir, using a
-      command like these, which simply invokes the
-      ``lib/scafacos/Install.py`` script with the specified args:
+      .. versionchanged:: TBD
 
-      .. code-block:: bash
-
-         # print help message
-         make lib-scafacos
-
-         # download and build in lib/scafacos/scafacos-<version>
-         make lib-scafacos args="-b"
-
-         # use existing ScaFaCoS installation in $HOME/scafacos
-         make lib-scafacos args="-p $HOME/scafacos
-
-      Note that two symbolic (soft) links, ``includelink`` and ``liblink``, are
-      created in ``lib/scafacos`` to point to the ScaFaCoS src dir.  When LAMMPS
-      builds in src it will use these links.  You should not need to edit
-      the ``lib/scafacos/Makefile.lammps`` file.
+      The SCAFACOS package no longer supports the the traditional make build.
+      You need to build LAMMPS with CMake.
 
 ----------
 
