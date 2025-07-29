@@ -432,11 +432,24 @@ double BondBPMSpringPlastic::single(int type, double rsq, int i, int j, double &
 {
   if (type <= 0) return 0.0;
 
+  // ep can be updated, so search bondlist vs. fix_bond_history->get_atom_value()
+  //   slower than other bpm/bond styles' single method
+  tagint *tag = atom->tag;
+  int **bondlist = neighbor->bondlist;
+  int nbondlist = neighbor->nbondlist;
+  double **bondstore = fix_bond_history->bondstore;
+
+  tagint tagi = tag[i];
+  tagint tagj = tag[j];
+  tagint tag1, tag2;
   double r0 = 0.0, ep = 0.0;
-  for (int n = 0; n < atom->num_bond[i]; n++) {
-    if (atom->bond_atom[i][n] == atom->tag[j]) {
-      r0 = fix_bond_history->get_atom_value(i, n, 0);
-      ep = fix_bond_history->get_atom_value(i, n, 1);
+  for (int n = 0; n < nbondlist; n++) {
+    tag1 = tag[bondlist[n][0]];
+    tag2 = tag[bondlist[n][1]];
+    if ((tag1 == tagi && tag2 == tagj) || (tag1 == tagj && tag2 == tagi)) {
+      r0 = bondstore[n][0];
+      ep = bondstore[n][1];
+      break;
     }
   }
 
