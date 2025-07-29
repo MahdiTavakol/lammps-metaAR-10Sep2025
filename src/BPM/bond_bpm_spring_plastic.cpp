@@ -99,12 +99,13 @@ double BondBPMSpringPlastic::store_bond(int n, int i, int j)
 
   r = sqrt(delx * delx + dely * dely + delz * delz);
   bondstore[n][0] = r;
+  bondstore[n][1] = 0.0;
 
   if (i < atom->nlocal) {
     for (int m = 0; m < atom->num_bond[i]; m++) {
       if (atom->bond_atom[i][m] == tag[j]) {
         fix_bond_history->update_atom_value(i, m, 0, r);
-        fix_bond_history->update_atom_value(i, m, 1, 0);
+        fix_bond_history->update_atom_value(i, m, 1, 0.0);
       }
     }
   }
@@ -113,7 +114,7 @@ double BondBPMSpringPlastic::store_bond(int n, int i, int j)
     for (int m = 0; m < atom->num_bond[j]; m++) {
       if (atom->bond_atom[j][m] == tag[i]) {
         fix_bond_history->update_atom_value(j, m, 0, r);
-        fix_bond_history->update_atom_value(j, m, 1, 0);
+        fix_bond_history->update_atom_value(j, m, 1, 0.0);
       }
     }
   }
