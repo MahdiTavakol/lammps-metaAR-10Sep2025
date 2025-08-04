@@ -98,7 +98,6 @@ PACKAGE = \
 	opt \
 	orient \
 	peri \
-	plumed \
 	ptm \
 	qeq \
 	qmmm \
@@ -189,7 +188,6 @@ PACKLIB = \
 	kokkos \
 	adios \
 	latboltz \
-	plumed \
 	qmmm
 
 PACKSYS = latboltz
@@ -198,7 +196,6 @@ PACKINT = kokkos
 
 PACKEXT = \
 	adios \
-	plumed \
 	qmmm
 
 # Helper GNU make function for conversion to upper case without using shell commands

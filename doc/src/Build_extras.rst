@@ -1319,7 +1319,7 @@ Before building LAMMPS with this package, you must first build PLUMED.
 PLUMED can be built as part of the LAMMPS build or installed separately
 from LAMMPS using the generic `PLUMED installation instructions <plumedinstall_>`_.
 The PLUMED package has been tested to work with Plumed versions
-2.4.x, 2.5.x, and 2.6.x and will error out, when trying to run calculations
+2.4.x, to 2.9.x and will error out, when trying to run calculations
 with a different version of the Plumed kernel.
 
 PLUMED can be linked into MD codes in three different modes: static,
@@ -1396,61 +1396,10 @@ folder and then load this plugin at runtime with the :doc:`plugin command <plugi
 
    .. tab:: Traditional make
 
-      PLUMED needs to be installed before the PLUMED package is
-      installed so that LAMMPS can find the right settings when
-      compiling and linking the LAMMPS executable.  You can either
-      download and build PLUMED inside the LAMMPS plumed library folder
-      or use a previously installed PLUMED library and point LAMMPS to
-      its location. You also have to choose the linkage mode: "static"
-      (default), "shared" or "runtime".  For a discussion of PLUMED
-      linkage modes, please see above.
+      .. versionchanged:: TBD
 
-      Download/compilation/configuration of the plumed library can be done
-      from the src folder through the following make args:
-
-      .. code-block:: bash
-
-         # print help message
-         make lib-plumed
-
-         # download and build PLUMED in lib/plumed/plumed2
-         make lib-plumed args="-b"
-
-         # use existing PLUMED installation in $HOME/.local
-         make lib-plumed args="-p $HOME/.local"
-
-         # use existing PLUMED installation in /usr/local and
-         # use shared linkage mode
-         make lib-plumed args="-p /usr/local -m shared"
-
-      Note that two symbolic (soft) links, ``includelink`` and ``liblink``
-      are created in ``lib/plumed`` that point to the location of the PLUMED
-      build to use. A new file ``lib/plumed/Makefile.lammps`` is also
-      created with settings suitable for LAMMPS to compile and link
-      PLUMED using the desired linkage mode. After this step is
-      completed, you can install the PLUMED package and compile
-      LAMMPS in the usual manner:
-
-      .. code-block:: bash
-
-         make yes-plumed
-         make machine
-
-      Once this compilation completes you should be able to run LAMMPS
-      in the usual way.  For shared linkage mode, libplumed.so must be
-      found by the LAMMPS executable, which on many operating systems
-      means, you have to set the ``LD_LIBRARY_PATH`` environment variable
-      accordingly.
-
-      Support for the different linkage modes in LAMMPS varies for
-      different operating systems, using the static linkage is expected
-      to be the most portable, and thus set to be the default.
-
-      If you want to change the linkage mode, you have to re-run ``make
-      lib-plumed`` with the desired settings **and** do a re-install if
-      the PLUMED package with ``make yes-plumed`` to update the
-      required makefile settings with the changes in the ``lib/plumed``
-      folder.
+      The PLUMED package no longer supports the the traditional make
+      build.  You need to build LAMMPS with CMake.
 
 ----------
 
