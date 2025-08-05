@@ -13,11 +13,16 @@
 
 #include "helpers.h"
 
+#include <QApplication>
+#include <QBrush>
+#include <QColor>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QPalette>
 #include <QProcess>
 #include <QStringList>
+#include <QWidget>
 
 // duplicate string, STL version
 char *mystrdup(const std::string &text)
@@ -37,6 +42,15 @@ char *mystrdup(const char *text)
 char *mystrdup(const QString &text)
 {
     return mystrdup(text.toStdString());
+}
+
+// get pointer to LAMMPS-GUI main widget
+
+QWidget *get_main_widget()
+{
+    for (QWidget *widget : QApplication::topLevelWidgets())
+        if (widget->objectName() == "LammpsGui") return widget;
+    return nullptr;
 }
 
 // find if executable is in path
@@ -61,10 +75,7 @@ bool has_exe(const QString &exe)
 
     QFile file(retStr);
     QFileInfo check_file(file);
-    if (check_file.exists() && check_file.isFile())
-        return true; // Found!
-    else
-        return false; // Not found!
+    return (check_file.exists() && check_file.isFile());
 }
 
 // recursively remove all contents from a directory
@@ -75,13 +86,23 @@ void purge_directory(const QString &dir)
 
     directory.setFilter(QDir::AllEntries | QDir::NoDotAndDotDot);
     const auto &entries = directory.entryList();
-    for (auto &entry : entries) {
+    for (const auto &entry : entries) {
         if (!directory.remove(entry)) {
             directory.cd(entry);
             directory.removeRecursively();
             directory.cdUp();
         }
     }
+}
+
+// compare black level of foreground and background color
+bool is_light_theme()
+{
+    QPalette p;
+    int fg = p.brush(QPalette::Active, QPalette::WindowText).color().black();
+    int bg = p.brush(QPalette::Active, QPalette::Window).color().black();
+
+    return (fg > bg);
 }
 
 // Local Variables:

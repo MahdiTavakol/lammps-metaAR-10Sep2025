@@ -15,6 +15,7 @@
 
 #include "chartviewer.h"
 #include "fileviewer.h"
+#include "findandreplace.h"
 #include "helpers.h"
 #include "highlighter.h"
 #include "imageviewer.h"
@@ -40,7 +41,6 @@
 #include <QGuiApplication>
 #include <QLabel>
 #include <QLineEdit>
-#include <QLocale>
 #include <QMessageBox>
 #include <QProcess>
 #include <QProgressBar>
@@ -57,6 +57,7 @@
 #include <QWizardPage>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -66,99 +67,138 @@
 #include <omp.h>
 #endif
 
-static const QString blank(" ");
-static constexpr int BUFLEN = 256;
+namespace {
+constexpr int DEFAULT_BUFLEN = 1024;
 
-LammpsGui::LammpsGui(QWidget *parent, const char *filename) :
-    QMainWindow(parent), ui(new Ui::LammpsGui), highlighter(nullptr), capturer(nullptr),
-    status(nullptr), logwindow(nullptr), imagewindow(nullptr), chartwindow(nullptr),
-    slideshow(nullptr), logupdater(nullptr), dirstatus(nullptr), progress(nullptr),
-    prefdialog(nullptr), lammpsstatus(nullptr), varwindow(nullptr), wizard(nullptr),
-    runner(nullptr), is_running(false), run_counter(0)
-{
-    // enforce using the plain ASCII C locale within the GUI.
-    QLocale::setDefault(QLocale("C"));
-
-#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-    // register QList<QString> only needed for Qt5
-    qRegisterMetaTypeStreamOperators<QList<QString>>("QList<QString>");
+#if defined(_OPENMP)
+constexpr int MAX_DEFAULT_THREADS = 16;
 #endif
 
+const QString blank(" ");
+const QString citeme("# When using LAMMPS-GUI in your project, please cite: "
+                     "https://arxiv.org/abs/2503.14020\n");
+const QString bannerstyle("CodeEditor {background-position: center center; "
+                          "padding: 0px; "
+                          "background-repeat: no-repeat; "
+                          "background-image: url(:/icons/lammps-gui-banner.png);}");
+} // namespace
+
+LammpsGui::LammpsGui(QWidget *parent, const QString &filename) :
+    QMainWindow(parent), ui(new Ui::LammpsGui), highlighter(nullptr), capturer(nullptr),
+    status(nullptr), cpuuse(nullptr), logwindow(nullptr), imagewindow(nullptr),
+    chartwindow(nullptr), slideshow(nullptr), logupdater(nullptr), dirstatus(nullptr),
+    progress(nullptr), prefdialog(nullptr), lammpsstatus(nullptr), varwindow(nullptr),
+    wizard(nullptr), runner(nullptr), is_running(false), run_counter(0)
+{
     docver = "";
     ui->setupUi(this);
+    ui->textEdit->document()->setPlainText(citeme);
+    ui->textEdit->document()->setModified(false);
+    ui->textEdit->setStyleSheet(bannerstyle);
     this->setCentralWidget(ui->textEdit);
     highlighter = new Highlighter(ui->textEdit->document());
     capturer    = new StdCapture;
     current_file.clear();
     current_dir = QDir(".").absolutePath();
-    // use $HOME if we get dropped to "/" like on macOS
-    if (current_dir == "/") current_dir = QDir::homePath();
-    inspectList.clear();
+    // use $HOME if we get dropped to "/" like on macOS or the installation folder like on Windows
+    if ((current_dir == "/") || (current_dir.contains("AppData"))) current_dir = QDir::homePath();
+    QDir::setCurrent(current_dir);
 
-#define stringify(x) myxstr(x)
-#define myxstr(x) #x
-    QCoreApplication::setOrganizationName("The LAMMPS Developers");
-    QCoreApplication::setOrganizationDomain("lammps.org");
-    QCoreApplication::setApplicationName("LAMMPS-GUI - QT" stringify(QT_VERSION_MAJOR));
-#undef stringify
-#undef myxstr
+    inspectList.clear();
+    setAutoFillBackground(true);
 
     // restore and initialize settings
     QSettings settings;
 
 #if defined(LAMMPS_GUI_USE_PLUGIN)
-    plugin_path.clear();
-    std::string deffile = settings.value("plugin_path", "liblammps.so").toString().toStdString();
-    for (const char *libfile : {deffile.c_str(), "./liblammps.so", "liblammps.dylib",
-                                "./liblammps.dylib", "liblammps.dll"}) {
-        if (lammps.load_lib(libfile)) {
-            auto canonical = QFileInfo(libfile).canonicalFilePath();
-            plugin_path    = canonical.toStdString();
-            settings.setValue("plugin_path", canonical);
-            break;
+    plugin_path =
+        QFileInfo(settings.value("plugin_path", "liblammps.so").toString()).canonicalFilePath();
+    if (!lammps.load_lib(plugin_path.toStdString().c_str())) {
+        // fall back to defaults
+        for (const char *libfile :
+             {"./liblammps.so", "liblammps.dylib", "./liblammps.dylib", "liblammps.dll"}) {
+            if (lammps.load_lib(libfile)) {
+                plugin_path = QFileInfo(libfile).canonicalFilePath();
+                settings.setValue("plugin_path", plugin_path);
+                break;
+            } else {
+                plugin_path.clear();
+            }
         }
     }
 
-    if (plugin_path.empty()) {
+    if (plugin_path.isEmpty()) {
         // none of the plugin paths could load, remove key
         settings.remove("plugin_path");
-        QMessageBox::critical(this, "Error", "Cannot open LAMMPS shared library file");
+        QMessageBox::critical(
+            this, "Error",
+            QString("Cannot open LAMMPS shared library file: %1.\n\n")
+                    .arg(settings.value("plugin_path", "liblammps.so").toString()) +
+                "Use -p command line flag to specify a path to the library.");
         exit(1);
     }
 #endif
 
-    // switch configured accelerator back to "none" if needed.
-    int accel = settings.value("accelerator", AcceleratorTab::None).toInt();
-    if (accel == AcceleratorTab::Opt) {
-        if (!lammps.config_has_package("OPT"))
-            settings.setValue("accelerator", AcceleratorTab::None);
-    } else if (accel == AcceleratorTab::OpenMP) {
-        if (!lammps.config_has_package("OPENMP"))
-            settings.setValue("accelerator", AcceleratorTab::None);
-    } else if (accel == AcceleratorTab::Intel) {
-        if (!lammps.config_has_package("INTEL"))
-            settings.setValue("accelerator", AcceleratorTab::None);
-    } else if (accel == AcceleratorTab::Gpu) {
-        if (!lammps.config_has_package("GPU") || !lammps.has_gpu_device())
-            settings.setValue("accelerator", AcceleratorTab::None);
-    } else if (accel == AcceleratorTab::Kokkos) {
-        if (!lammps.config_has_package("KOKKOS"))
-            settings.setValue("accelerator", AcceleratorTab::None);
+    // default accelerator package is OPENMP, but we switch the configured accelerator to
+    // "none" if the selected package is not available to have an option that always works
+    int accel = settings.value("accelerator", AcceleratorTab::OpenMP).toInt();
+    switch (accel) {
+        case AcceleratorTab::Opt:
+            if (!lammps.config_has_package("OPT")) accel = AcceleratorTab::None;
+            break;
+        case AcceleratorTab::OpenMP:
+            if (!lammps.config_has_package("OPENMP")) accel = AcceleratorTab::None;
+            break;
+        case AcceleratorTab::Intel:
+            if (!lammps.config_has_package("INTEL")) accel = AcceleratorTab::None;
+            break;
+        case AcceleratorTab::Gpu:
+            if (!lammps.config_has_package("GPU")) accel = AcceleratorTab::None;
+            break;
+        case AcceleratorTab::Kokkos:
+            if (!lammps.config_has_package("KOKKOS")) accel = AcceleratorTab::None;
+            break;
+        case AcceleratorTab::None: // fallthrough
+        default:                   // do nothing
+            break;
     }
+    settings.setValue("accelerator", accel);
 
-    // check and initialize nthreads setting. Default is to use max if there
-    // is no preference but do not override OMP_NUM_THREADS
+    // Check and initialize some settings for individual accelerator packages and commit
+    // GPU neighbor list on GPU versus host
+    bool gpuneigh = settings.value("gpuneigh", true).toBool();
+    settings.setValue("gpuneigh", gpuneigh);
+    // accelerate only pair style (i.e. run PPPM completely on host)
+    bool gpupaironly = settings.value("gpupaironly", false).toBool();
+    settings.setValue("gpupaironly", gpupaironly);
+    // INTEL package precision
+    int intelprec = settings.value("intelprec", AcceleratorTab::Mixed).toInt();
+    settings.setValue("intelprec", intelprec);
+
+    // Check and initialize nthreads setting for when OpenMP support is compiled in.
+    // Default is to use OMP_NUM_THREADS setting, if that is not available, thenhalf of max
+    // (assuming hyper-threading is enabled) and no more than MAX_DEFAULT_THREADS (=16).
+    // This is only if there is no preference set but do not override OMP_NUM_THREADS
+    nthreads = 1;
 #if defined(_OPENMP)
-    // use up to 16 available threads unless OMP_NUM_THREADS was set
-    int nthreads = settings.value("nthreads", std::min(omp_get_max_threads(), 16)).toInt();
-    if (!qEnvironmentVariableIsSet("OMP_NUM_THREADS")) {
-        qputenv("OMP_NUM_THREADS", std::to_string(nthreads).c_str());
-    }
-#else
-    int nthreads = settings.value("nthreads", 1).toInt();
-#endif
-    settings.setValue("nthreads", QString::number(nthreads));
+    int default_threads = std::min(QThread::idealThreadCount() / 2, MAX_DEFAULT_THREADS);
+    default_threads     = std::max(default_threads, 1);
+    if (qEnvironmentVariableIsSet("OMP_NUM_THREADS"))
+        default_threads = qEnvironmentVariable("OMP_NUM_THREADS").toInt();
+    nthreads = settings.value("nthreads", default_threads).toInt();
 
+    // reset nthreads if accelerator does not support threads
+    if ((accel == AcceleratorTab::Opt) || (accel == AcceleratorTab::None)) nthreads = 1;
+
+    // reset number of threads in use
+    omp_set_num_threads(nthreads);
+
+    // set OMP_NUM_THREADS environment variable, if not set
+    if (!qEnvironmentVariableIsSet("OMP_NUM_THREADS"))
+        qputenv("OMP_NUM_THREADS", QByteArray::number(nthreads));
+#endif
+
+    // set up default LAMMPS thread arguments
     lammps_args.clear();
     lammps_args.push_back(mystrdup("LAMMPS-GUI"));
     lammps_args.push_back(mystrdup("-log"));
@@ -217,14 +257,22 @@ LammpsGui::LammpsGui(QWidget *parent, const char *filename) :
     connect(ui->actionPaste, &QAction::triggered, this, &LammpsGui::paste);
     connect(ui->actionUndo, &QAction::triggered, this, &LammpsGui::undo);
     connect(ui->actionRedo, &QAction::triggered, this, &LammpsGui::redo);
+    connect(ui->actionSearchAndReplace, &QAction::triggered, this, &LammpsGui::findandreplace);
     connect(ui->actionRun_Buffer, &QAction::triggered, this, &LammpsGui::run_buffer);
     connect(ui->actionRun_File, &QAction::triggered, this, &LammpsGui::run_file);
     connect(ui->actionStop_LAMMPS, &QAction::triggered, this, &LammpsGui::stop_run);
+    connect(ui->actionRestart_LAMMPS, &QAction::triggered, this, &LammpsGui::restart_lammps);
     connect(ui->actionSet_Variables, &QAction::triggered, this, &LammpsGui::edit_variables);
     connect(ui->actionImage, &QAction::triggered, this, &LammpsGui::render_image);
     connect(ui->actionLAMMPS_Tutorial, &QAction::triggered, this, &LammpsGui::tutorial_web);
     connect(ui->actionTutorial1, &QAction::triggered, this, &LammpsGui::start_tutorial1);
     connect(ui->actionTutorial2, &QAction::triggered, this, &LammpsGui::start_tutorial2);
+    connect(ui->actionTutorial3, &QAction::triggered, this, &LammpsGui::start_tutorial3);
+    connect(ui->actionTutorial4, &QAction::triggered, this, &LammpsGui::start_tutorial4);
+    connect(ui->actionTutorial5, &QAction::triggered, this, &LammpsGui::start_tutorial5);
+    connect(ui->actionTutorial6, &QAction::triggered, this, &LammpsGui::start_tutorial6);
+    connect(ui->actionTutorial7, &QAction::triggered, this, &LammpsGui::start_tutorial7);
+    connect(ui->actionTutorial8, &QAction::triggered, this, &LammpsGui::start_tutorial8);
     connect(ui->actionAbout_LAMMPS_GUI, &QAction::triggered, this, &LammpsGui::about);
     connect(ui->action_Help, &QAction::triggered, this, &LammpsGui::help);
     connect(ui->actionLAMMPS_GUI_Howto, &QAction::triggered, this, &LammpsGui::howto);
@@ -277,6 +325,10 @@ LammpsGui::LammpsGui(QWidget *parent, const char *filename) :
     connect(lammpsstop, &QPushButton::released, this, &LammpsGui::stop_run);
     connect(lammpsimage, &QPushButton::released, this, &LammpsGui::render_image);
 
+    cpuuse = new QLabel("   0%CPU");
+    cpuuse->setFixedWidth(90);
+    ui->statusbar->addWidget(cpuuse);
+    cpuuse->hide();
     status = new QLabel("Ready.");
     status->setFixedWidth(300);
     ui->statusbar->addWidget(status);
@@ -290,7 +342,7 @@ LammpsGui::LammpsGui(QWidget *parent, const char *filename) :
     dirstatus->show();
     ui->statusbar->addWidget(progress);
 
-    if (filename) {
+    if (filename.size() > 0) {
         open_file(filename);
     } else {
         setWindowTitle("LAMMPS-GUI - Editor - *unknown*");
@@ -300,7 +352,7 @@ LammpsGui::LammpsGui(QWidget *parent, const char *filename) :
     // start LAMMPS and initialize command completion
     start_lammps();
     QStringList style_list;
-    char buf[BUFLEN];
+    char buf[DEFAULT_BUFLEN];
     QFile internal_commands(":/lammps_internal_commands.txt");
     if (internal_commands.open(QIODevice::ReadOnly | QIODevice::Text)) {
         while (!internal_commands.atEnd()) {
@@ -310,7 +362,7 @@ LammpsGui::LammpsGui(QWidget *parent, const char *filename) :
     internal_commands.close();
     int ncmds = lammps.style_count("command");
     for (int i = 0; i < ncmds; ++i) {
-        if (lammps.style_name("command", i, buf, BUFLEN)) {
+        if (lammps.style_name("command", i, buf, DEFAULT_BUFLEN)) {
             // skip suffixed names
             const QString style(buf);
             if (style.endsWith("/kk/host") || style.endsWith("/kk/device") || style.endsWith("/kk"))
@@ -357,7 +409,7 @@ LammpsGui::LammpsGui(QWidget *parent, const char *filename) :
         style_list << QString("none");                                                         \
     ncmds = lammps.style_count(#keyword);                                                      \
     for (int i = 0; i < ncmds; ++i) {                                                          \
-        if (lammps.style_name(#keyword, i, buf, BUFLEN)) {                                     \
+        if (lammps.style_name(#keyword, i, buf, DEFAULT_BUFLEN)) {                             \
             const QString style(buf);                                                          \
             if (style.endsWith("/gpu") || style.endsWith("/intel") || style.endsWith("/kk") || \
                 style.endsWith("/kk/device") || style.endsWith("/kk/host") ||                  \
@@ -388,6 +440,11 @@ LammpsGui::LammpsGui(QWidget *parent, const char *filename) :
     ui->textEdit->setReformatOnReturn(settings.value("return", false).toBool());
     ui->textEdit->setAutoComplete(settings.value("automatic", true).toBool());
     settings.endGroup();
+
+    // apply https proxy setting: prefer environment variable or fall back to preferences value
+    auto https_proxy = QString::fromLocal8Bit(qgetenv("https_proxy"));
+    if (https_proxy.isEmpty()) https_proxy = settings.value("https_proxy", "").toString();
+    if (!https_proxy.isEmpty()) lammps.command(QString("shell putenv https_proxy=") + https_proxy);
 }
 
 LammpsGui::~LammpsGui()
@@ -396,6 +453,7 @@ LammpsGui::~LammpsGui()
     delete highlighter;
     delete capturer;
     delete status;
+    delete cpuuse;
     delete logwindow;
     delete imagewindow;
     delete chartwindow;
@@ -407,12 +465,28 @@ LammpsGui::~LammpsGui()
 void LammpsGui::new_document()
 {
     current_file.clear();
-    ui->textEdit->document()->setPlainText(QString());
+    ui->textEdit->document()->setPlainText(citeme);
+    ui->textEdit->document()->setModified(false);
+    ui->textEdit->setStyleSheet(bannerstyle);
 
     if (lammps.is_running()) {
         stop_run();
         runner->wait();
+        delete runner;
+        runner = nullptr;
     }
+    // close windows
+    delete chartwindow;
+    delete logwindow;
+    delete slideshow;
+    delete imagewindow;
+    delete varwindow;
+    chartwindow = nullptr;
+    logwindow   = nullptr;
+    slideshow   = nullptr;
+    imagewindow = nullptr;
+    varwindow   = nullptr;
+
     lammps.close();
     lammpsstatus->hide();
     setWindowTitle("LAMMPS-GUI - Editor - *unknown*");
@@ -446,9 +520,7 @@ void LammpsGui::open_recent()
 void LammpsGui::get_directory()
 {
     if (wizard) {
-        // figure out which wizard we are following
-        auto *line = wizard->findChild<QLineEdit *>("t1_directory");
-        if (!line) line = wizard->findChild<QLineEdit *>("t2_directory");
+        auto *line = wizard->findChild<QLineEdit *>("t_directory");
         if (line) {
             auto curdir = line->text();
             QFileDialog dialog(this, "Choose Directory for Tutorial Files", curdir);
@@ -497,14 +569,14 @@ void LammpsGui::start_exe()
             vmdfile.write(".psf}\n");
             vmdfile.close();
             args << "-e" << vmdfile.fileName();
-            lammps.command(datacmd.toLocal8Bit());
+            lammps.command(datacmd);
             auto *vmd = new QProcess(this);
             vmd->start(exe, args);
         }
         if (exe == "ovito") {
             QStringList args;
             args << datafile.fileName();
-            lammps.command(datacmd.toLocal8Bit());
+            lammps.command(datacmd);
             auto *ovito = new QProcess(this);
             ovito->start(exe, args);
         }
@@ -514,7 +586,7 @@ void LammpsGui::start_exe()
 void LammpsGui::update_recents(const QString &filename)
 {
     QSettings settings;
-    recent = settings.value("recent").value<QList<QString>>();
+    if (settings.contains("recent")) recent = settings.value("recent").value<QList<QString>>();
 
     for (int i = 0; i < recent.size(); ++i) {
         QFileInfo fi(recent[i]);
@@ -526,10 +598,13 @@ void LammpsGui::update_recents(const QString &filename)
 
     if (!filename.isEmpty() && !recent.contains(filename)) recent.prepend(filename);
     if (recent.size() > 5) recent.removeLast();
-    settings.setValue("recent", QVariant::fromValue(recent));
+    if (!recent.empty())
+        settings.setValue("recent", QVariant::fromValue(recent));
+    else
+        settings.remove("recent");
 
     ui->action_1->setVisible(false);
-    if ((recent.size() > 0) && !recent[0].isEmpty()) {
+    if ((!recent.empty()) && !recent[0].isEmpty()) {
         QFileInfo fi(recent[0]);
         ui->action_1->setText(QString("&1. ") + fi.fileName());
         ui->action_1->setData(recent[0]);
@@ -562,6 +637,20 @@ void LammpsGui::update_recents(const QString &filename)
         ui->action_5->setText(QString("&5. ") + fi.fileName());
         ui->action_5->setData(recent[4]);
         ui->action_5->setVisible(true);
+    }
+}
+
+// delete all current variables in the LAMMPS instance
+void LammpsGui::clear_variables()
+{
+    int nvar = lammps.id_count("variable");
+    char buffer[DEFAULT_BUFLEN];
+
+    // delete from back so they are not re-indexed
+    for (int i = nvar - 1; i >= 0; --i) {
+        memset(buffer, 0, DEFAULT_BUFLEN);
+        if (lammps.id_name("variable", i, buffer, DEFAULT_BUFLEN))
+            lammps.command(QString("variable %1 delete").arg(buffer));
     }
 }
 
@@ -624,7 +713,27 @@ void LammpsGui::update_variables()
 // open file and switch CWD to path of file
 void LammpsGui::open_file(const QString &fileName)
 {
+    if (lammps.is_running()) {
+        stop_run();
+        runner->wait();
+        delete runner;
+        runner = nullptr;
+    }
+    // close windows
+    delete chartwindow;
+    delete logwindow;
+    delete slideshow;
+    delete imagewindow;
+    delete varwindow;
+    chartwindow = nullptr;
+    logwindow   = nullptr;
+    slideshow   = nullptr;
+    imagewindow = nullptr;
+    varwindow   = nullptr;
+    lammps.close();
+
     purge_inspect_list();
+    ui->textEdit->setStyleSheet("");
     if (ui->textEdit->document()->isModified()) {
         QMessageBox msg;
         msg.setWindowTitle("Unsaved Changes");
@@ -660,10 +769,12 @@ void LammpsGui::open_file(const QString &fileName)
     QDir::setCurrent(current_dir);
     if (!file.open(QIODevice::ReadOnly | QFile::Text)) {
         QMessageBox::warning(this, "Warning",
-                             "Cannot open file " + path.absoluteFilePath() + ": " +
+                             "Cannot open file " + path.absoluteFilePath() + ":\n " +
                                  file.errorString() +
-                                 ".\nWill create new file on saving editor buffer.");
-        ui->textEdit->document()->setPlainText(QString());
+                                 ".\n\nWill create new file on saving editor buffer.");
+        ui->textEdit->document()->setPlainText(citeme);
+        ui->textEdit->document()->setModified(false);
+        ui->textEdit->setStyleSheet(bannerstyle);
     } else {
         QTextStream in(&file);
         QString text = in.readAll();
@@ -681,23 +792,8 @@ void LammpsGui::open_file(const QString &fileName)
     ui->textEdit->setFileList();
     dirstatus->setText(QString(" Directory: ") + current_dir);
     status->setText("Ready.");
+    cpuuse->hide();
 
-    if (slideshow) {
-        delete slideshow;
-        slideshow = nullptr;
-    }
-    if (imagewindow) {
-        delete imagewindow;
-        imagewindow = nullptr;
-    }
-    if (chartwindow) {
-        delete chartwindow;
-        chartwindow = nullptr;
-    }
-    if (logwindow) {
-        delete logwindow;
-        logwindow = nullptr;
-    }
     update_variables();
     lammps.close();
 }
@@ -718,7 +814,7 @@ void LammpsGui::view_file(const QString &fileName)
 
 void LammpsGui::purge_inspect_list()
 {
-    for (auto item : inspectList) {
+    for (auto *item : inspectList) {
         if (item->info) {
             if (!item->info->isVisible()) {
                 delete item->info;
@@ -748,7 +844,7 @@ void LammpsGui::inspect_file(const QString &fileName)
     auto shortName = QFileInfo(fileName).fileName();
 
     purge_inspect_list();
-    auto ilist   = new InspectData;
+    auto *ilist  = new InspectData;
     ilist->info  = nullptr;
     ilist->data  = nullptr;
     ilist->image = nullptr;
@@ -801,7 +897,8 @@ void LammpsGui::inspect_file(const QString &fileName)
 
         start_lammps();
         lammps.command("clear");
-        lammps.command(QString("read_restart %1").arg(fileName).toLocal8Bit());
+        clear_variables();
+        lammps.command(QString("read_restart %1").arg(fileName));
         capturer->BeginCapture();
         lammps.command("info system group compute fix");
         capturer->EndCapture();
@@ -817,7 +914,7 @@ void LammpsGui::inspect_file(const QString &fileName)
             infoviewer->show();
             ilist->info = infoviewer;
             dumpinfo.remove();
-            lammps.command(QString("write_data %1 pair ij noinit").arg(infodata).toLocal8Bit());
+            lammps.command(QString("write_data %1 pair ij noinit").arg(infodata));
             auto *dataviewer =
                 new FileViewer(infodata, QString("LAMMPS-GUI: data file for %1").arg(shortName));
             dataviewer->show();
@@ -876,10 +973,16 @@ void LammpsGui::save_as()
 
 void LammpsGui::quit()
 {
+    removeEventFilter(this);
+
     if (lammps.is_running()) {
         stop_run();
         runner->wait();
+        delete runner;
+        runner = nullptr;
     }
+
+    // close LAMMPS instance
     lammps.close();
     lammpsstatus->hide();
     lammps.finalize();
@@ -916,6 +1019,7 @@ void LammpsGui::quit()
         settings.setValue("mainy", height());
     }
     settings.sync();
+    // quit application
     QCoreApplication::quit();
 }
 
@@ -966,6 +1070,24 @@ void LammpsGui::logupdate()
         t_remain  = lammps.get_thermo("cpuremain");
         t_total   = t_elapsed + t_remain + 1.0e-10;
         completed = t_elapsed / t_total * 1000.0;
+        // update cpu usage
+        int percent_cpu = (int)lammps.get_thermo("cpuuse");
+        cpuuse->setText(QString("%1%CPU").arg(percent_cpu, 4));
+        if (percent_cpu < 25.0 * nthreads) {
+            cpuuse->setStyleSheet("QLabel {background-color: black; color: white;}");
+        } else if (percent_cpu < 50.0 * nthreads) {
+            cpuuse->setStyleSheet("QLabel {background-color: darkblue; color: white;}");
+        } else if (percent_cpu > 100.0 * nthreads + 50.0) {
+            cpuuse->setStyleSheet("QLabel {background-color: firebrick; color: white;}");
+        } else if (percent_cpu < 100.0 * nthreads - 50.0) {
+            cpuuse->setStyleSheet("QLabel {background-color: firebrick; color: white;}");
+        } else if (percent_cpu > 100.0 * nthreads + 20.0) {
+            cpuuse->setStyleSheet("QLabel {background-color: gold; color: black;}");
+        } else if (percent_cpu < 100.0 * nthreads - 20.0) {
+            cpuuse->setStyleSheet("QLabel {background-color: gold; color: black;}");
+        } else {
+            cpuuse->setStyleSheet("QLabel {background-color: forestgreen; color: white;}");
+        }
 
         int nline = -1;
         void *ptr = lammps.last_thermo("line", 0);
@@ -976,11 +1098,11 @@ void LammpsGui::logupdate()
 
         if (varwindow) {
             int nvar = lammps.id_count("variable");
-            char buffer[BUFLEN];
+            char buffer[DEFAULT_BUFLEN];
             QString varinfo("\n");
             for (int i = 0; i < nvar; ++i) {
-                memset(buffer, 0, BUFLEN);
-                if (lammps.variable_info(i, buffer, BUFLEN)) varinfo += buffer;
+                memset(buffer, 0, DEFAULT_BUFLEN);
+                if (lammps.variable_info(i, buffer, DEFAULT_BUFLEN)) varinfo += buffer;
             }
             if (nvar == 0) varinfo += "  (none)  ";
 
@@ -992,7 +1114,8 @@ void LammpsGui::logupdate()
     progress->setValue(completed);
     if (logwindow) {
         const auto text = capturer->GetChunk();
-        if (text.size() > 0) {
+        if (!text.empty()) {
+            logwindow->moveCursor(QTextCursor::End);
             logwindow->insertPlainText(text.c_str());
             logwindow->moveCursor(QTextCursor::End);
             logwindow->textCursor().deleteChar();
@@ -1015,6 +1138,7 @@ void LammpsGui::logupdate()
         void *ptr = lammps.last_thermo("setup", 0);
         if (ptr && *(int *)ptr) return;
 
+        lammps.last_thermo("lock", 0);
         ptr = lammps.last_thermo("num", 0);
         if (ptr) {
             int ncols = *(int *)ptr;
@@ -1066,6 +1190,7 @@ void LammpsGui::logupdate()
                 chartwindow->add_data(step, data, i);
             }
         }
+        lammps.last_thermo("unlock", 0);
     }
 
     // update list of available image file names
@@ -1092,24 +1217,54 @@ void LammpsGui::modified()
 {
     const QString modflag(" - *modified*");
     auto title = windowTitle().remove(modflag);
-    if (ui->textEdit->document()->isModified())
+    if (ui->textEdit->document()->isModified()) {
+        ui->textEdit->setStyleSheet("");
         setWindowTitle(title + modflag);
-    else
+    } else
         setWindowTitle(title);
 }
 
 void LammpsGui::run_done()
 {
-    if (logupdater) logupdater->stop();
-    delete logupdater;
-    logupdater = nullptr;
+    if (logupdater) {
+        logupdater->stop();
+        delete logupdater;
+        logupdater = nullptr;
+    }
     progress->setValue(1000);
     ui->textEdit->setHighlight(CodeEditor::NO_HIGHLIGHT, false);
 
     capturer->EndCapture();
-    auto log = capturer->GetCapture();
-    logwindow->insertPlainText(log.c_str());
-    logwindow->moveCursor(QTextCursor::End);
+
+    if (logwindow) {
+        auto log = capturer->GetCapture();
+        logwindow->insertPlainText(log.c_str());
+        logwindow->moveCursor(QTextCursor::End);
+    }
+
+    // check stdout capture buffer utilization and print warning message if large
+
+    double bufferuse = capturer->get_bufferuse();
+    if (bufferuse > 0.333) {
+        int thermo_val     = lammps.extract_setting("thermo_every");
+        int thermo_suggest = 5 * (int)round(bufferuse * thermo_val);
+        int update_val     = QSettings().value("updfreq", 100).toInt();
+        int update_suggest = std::max(1, update_val / 5);
+
+        QString mesg("<p align=\"justified\">The I/O buffer for capturing the LAMMPS screen output "
+                     "was used by up to %1%.</p> <p align=\"justified\"><b>This can slow down the "
+                     "simulation.</b></p> <p align=\"justified\">Please consider reducing the "
+                     "amount of output to the screen, for example by increasing the thermo "
+                     "interval in the input from %2 to %3, or reducing the data update interval in "
+                     "the preferences from %4 to %5, or something similar.</p>");
+
+        QMessageBox::critical(this, " Warning: High I/O Buffer Usage",
+                              mesg.arg((int)(100.0 * bufferuse))
+                                  .arg(thermo_val)
+                                  .arg(thermo_suggest)
+                                  .arg(update_val)
+                                  .arg(update_suggest));
+    }
 
     if (chartwindow) {
         void *ptr = lammps.last_thermo("step", 0);
@@ -1140,12 +1295,11 @@ void LammpsGui::run_done()
         }
     }
 
-    bool success         = true;
-    constexpr int BUFLEN = 1024;
-    char errorbuf[BUFLEN];
+    bool success = true;
+    char errorbuf[DEFAULT_BUFLEN];
 
     if (lammps.has_error()) {
-        lammps.get_last_error_message(errorbuf, BUFLEN);
+        lammps.get_last_error_message(errorbuf, DEFAULT_BUFLEN);
         success = false;
     }
 
@@ -1155,17 +1309,30 @@ void LammpsGui::run_done()
 
     if (success) {
         status->setText("Ready.");
+        cpuuse->setText("   0%CPU");
     } else {
         status->setText("Failed.");
         ui->textEdit->setHighlight(nline, true);
         QMessageBox::critical(this, "LAMMPS-GUI Error",
-                              QString("Error running LAMMPS:\n\n") + errorbuf);
+                              QString("<p>Error running LAMMPS:\n\n<pre>") + errorbuf +
+                                  "</pre></p>");
     }
     ui->textEdit->setCursor(nline);
     ui->textEdit->setFileList();
     progress->hide();
+    cpuuse->hide();
     dirstatus->show();
 }
+
+void LammpsGui::restart_lammps()
+{
+    if (lammps.is_running()) {
+        QMessageBox::warning(this, "LAMMPS-GUI Error",
+                             "Must stop current run before relaunching LAMMPS");
+        return;
+    }
+    lammps.close();
+};
 
 void LammpsGui::do_run(bool use_buffer)
 {
@@ -1202,14 +1369,15 @@ void LammpsGui::do_run(bool use_buffer)
     progress->setValue(0);
     dirstatus->hide();
     progress->show();
+    cpuuse->show();
 
-    int nthreads = settings.value("nthreads", 1).toInt();
-    int accel    = settings.value("accelerator", AcceleratorTab::None).toInt();
+    int numthreads = nthreads;
+    int accel      = settings.value("accelerator", AcceleratorTab::OpenMP).toInt();
     if ((accel != AcceleratorTab::OpenMP) && (accel != AcceleratorTab::Intel) &&
-        (accel != AcceleratorTab::Kokkos))
-        nthreads = 1;
-    if (nthreads > 1)
-        status->setText(QString("Running LAMMPS with %1 thread(s)...").arg(nthreads));
+        (accel != AcceleratorTab::Kokkos) && (accel != AcceleratorTab::Gpu))
+        numthreads = 1;
+    if (numthreads > 1)
+        status->setText(QString("Running LAMMPS with %1 thread(s)...").arg(numthreads));
     else
         status->setText(QString("Running LAMMPS ..."));
     status->repaint();
@@ -1221,9 +1389,11 @@ void LammpsGui::do_run(bool use_buffer)
     is_running = true;
     ++run_counter;
 
+    // must delete all variables since clear does not delete them
+    clear_variables();
+
     // define "gui_run" variable set to run_counter value
-    lammps.command("variable gui_run delete");
-    lammps.command(std::string("variable gui_run index " + std::to_string(run_counter)).c_str());
+    lammps.command(std::string("variable gui_run index " + std::to_string(run_counter)));
     if (use_buffer) {
         // always add final newline since the text edit widget does not do it
         char *input = mystrdup(ui->textEdit->toPlainText() + "\n");
@@ -1232,6 +1402,11 @@ void LammpsGui::do_run(bool use_buffer)
         char *fname = mystrdup(current_file);
         runner->setup_run(&lammps, nullptr, fname);
     }
+
+    // apply https proxy setting: prefer environment variable or fall back to preferences value
+    auto https_proxy = QString::fromLocal8Bit(qgetenv("https_proxy"));
+    if (https_proxy.isEmpty()) https_proxy = settings.value("https_proxy", "").toString();
+    if (!https_proxy.isEmpty()) lammps.command(QString("shell putenv https_proxy=") + https_proxy);
 
     connect(runner, &LammpsRunner::resultReady, this, &LammpsGui::run_done);
     connect(runner, &LammpsRunner::finished, runner, &QObject::deleteLater);
@@ -1244,7 +1419,7 @@ void LammpsGui::do_run(bool use_buffer)
     logwindow->setCenterOnScroll(true);
     logwindow->moveCursor(QTextCursor::End);
     logwindow->setWindowTitle(
-        QString("LAMMPS-GUI - Output - %2 - Run %3").arg(current_file).arg(run_counter));
+        QString("LAMMPS-GUI - Output - %1 - Run %2").arg(current_file).arg(run_counter));
     logwindow->setWindowIcon(QIcon(":/icons/lammps-icon-128x128.png"));
     QFont text_font;
     text_font.fromString(settings.value("textfont", text_font.toString()).toString());
@@ -1267,6 +1442,11 @@ void LammpsGui::do_run(bool use_buffer)
         QString("LAMMPS-GUI - Charts - %2 - Run %3").arg(current_file).arg(run_counter));
     chartwindow->setWindowIcon(QIcon(":/icons/lammps-icon-128x128.png"));
     chartwindow->setMinimumSize(400, 300);
+    auto *unitptr = (const char *)lammps.extract_global("units");
+    if (unitptr) chartwindow->set_units(QString("Units: %1").arg(unitptr));
+    auto normflag = lammps.extract_setting("thermo_norm");
+    chartwindow->set_norm(normflag != 0);
+
     shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_W), chartwindow);
     QObject::connect(shortcut, &QShortcut::activated, chartwindow, &ChartWindow::close);
     shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Slash), chartwindow);
@@ -1311,7 +1491,8 @@ void LammpsGui::render_image()
                 selection += "\nrun 0 pre yes post no";
                 ui->textEdit->setTextCursor(saved);
                 lammps.command("clear");
-                lammps.commands_string(selection.toStdString().c_str());
+                clear_variables();
+                lammps.commands_string(selection);
                 // clear any possible error status
                 lammps.get_last_error_message(nullptr, 0);
             }
@@ -1440,12 +1621,16 @@ void LammpsGui::setFont(const QFont &newfont)
 void LammpsGui::about()
 {
     std::string version = "This is LAMMPS-GUI version " LAMMPS_GUI_VERSION;
-    version += " using Qt version " QT_VERSION_STR "\n";
+    version += " using Qt version " QT_VERSION_STR;
+    if (is_light_theme())
+        version += " using light theme\n";
+    else
+        version += " using dark theme\n";
     if (lammps.has_plugin()) {
         version += "LAMMPS library loaded as plugin";
-        if (!plugin_path.empty()) {
+        if (!plugin_path.isEmpty()) {
             version += " from file ";
-            version += plugin_path;
+            version += plugin_path.toStdString();
         }
     } else {
         version += "LAMMPS library linked to executable";
@@ -1454,7 +1639,7 @@ void LammpsGui::about()
     QString to_clipboard(version.c_str());
     to_clipboard += "\n\n";
 
-    std::string info = "LAMMPS is currently running. LAMMPS config info not available.";
+    std::string info = "LAMMPS is currently running. LAMMPS config info not available.\n";
 
     // LAMMPS is not re-entrant, so we can only query LAMMPS when it is not running
     if (!lammps.is_running()) {
@@ -1468,9 +1653,11 @@ void LammpsGui::about()
         info       = std::string(info, start, end - start);
     }
 
+    info += citeme.toStdString();
     to_clipboard += info.c_str();
+#if QT_CONFIG(clipboard)
     QGuiApplication::clipboard()->setText(to_clipboard);
-    info += "(Note: this text has been copied to the clipboard)\n";
+#endif
 
     QMessageBox msg;
     msg.setWindowTitle("About LAMMPS-GUI");
@@ -1484,8 +1671,8 @@ void LammpsGui::about()
     msg.setFont(myfont);
 
     auto *minwidth = new QSpacerItem(700, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
-    auto *layout   = (QGridLayout *)msg.layout();
-    layout->addItem(minwidth, layout->rowCount(), 0, 1, layout->columnCount());
+    auto *layout   = dynamic_cast<QGridLayout *>(msg.layout());
+    if (layout) layout->addItem(minwidth, layout->rowCount(), 0, 1, layout->columnCount());
 
     msg.exec();
 }
@@ -1558,287 +1745,272 @@ void LammpsGui::tutorial_web()
     QDesktopServices::openUrl(QUrl("https://lammpstutorials.github.io/"));
 }
 
+QWizardPage *LammpsGui::tutorial_intro(const int ntutorial, const QString &infotext)
+{
+    auto *page = new QWizardPage;
+    page->setTitle(QString("Getting Started With Tutorial %1").arg(ntutorial));
+    page->setPixmap(QWizard::WatermarkPixmap,
+                    QPixmap(QString(":/icons/tutorial%1-logo.png").arg(ntutorial)));
+
+    // XXX TODO: update URL to published tutorial DOI
+    auto *label = new QLabel(
+        QString("<p>This dialog will help you to select and populate a folder with materials "
+                "required to work through tutorial ") +
+        QString::number(ntutorial) +
+        QString(" from the LAMMPS tutorials article by Simon Gravelle, Jake Gissinger, and Axel "
+                "Kohlmeyer.</p><p>The materials for this tutorial are downloaded from:<br><b><a "
+                "href=\"https://github.com/lammpstutorials/lammpstutorials-article\">https://"
+                "github.com/lammpstutorials/lammpstutorials-article</a></b></p>") +
+        infotext);
+    label->setWordWrap(true);
+
+    auto *layout = new QVBoxLayout;
+    layout->addWidget(label);
+    page->setLayout(layout);
+    return page;
+}
+
+QWizardPage *LammpsGui::tutorial_directory(const int ntutorial)
+{
+    QSettings settings;
+    settings.beginGroup("tutorial");
+    auto *page = new QWizardPage;
+    page->setTitle(QString("Select Directory for Tutorial %1").arg(ntutorial));
+    page->setPixmap(QWizard::WatermarkPixmap,
+                    QPixmap(QString(":/icons/tutorial%1-logo.png").arg(ntutorial)));
+
+    auto *frame = new QFrame;
+    auto *label = new QLabel(
+        QString("<p>Select a directory to store the files for tutorial %1.  The directory will be "
+                "created if necessary and LAMMPS-GUI will download the files required for the "
+                "tutorial.  If selected, an existing directory may be cleared from old "
+                "files.</p>\n<p>Available files of the tutorial solution may be downloaded to a "
+                "sub-folder called \"solution\", if requested.</p>\n")
+            .arg(ntutorial));
+    label->setWordWrap(true);
+
+    auto *dirlayout = new QHBoxLayout;
+    auto *directory = new QLineEdit;
+
+    // if we are already in a tutorial folder, stay there or pick folder in same parent dir
+    bool haveDir = false;
+    for (int i = 1; i < 99; ++i) {
+        if (current_dir.endsWith(QString("tutorial%1").arg(i))) {
+            if (i > 9) { // We assume there are no more than 99 tutorials
+                current_dir.chop(2);
+            } else {
+                current_dir.chop(1);
+            }
+            current_dir.append(QString::number(ntutorial));
+            haveDir = true;
+        }
+    }
+
+    // if current dir is home, or application folder, switch to desktop path
+    if ((current_dir == QDir::homePath()) || current_dir.contains("AppData") ||
+        current_dir.contains("Program Files")) {
+        current_dir = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+    }
+    if (!haveDir) current_dir.append(QString("/tutorial%1").arg(ntutorial));
+    directory->setText(current_dir);
+
+    auto *dirbutton = new QPushButton("&Choose");
+    dirlayout->addWidget(directory);
+    dirlayout->addWidget(dirbutton);
+    directory->setObjectName("t_directory");
+    connect(dirbutton, &QPushButton::released, this, &LammpsGui::get_directory);
+
+    auto *grid       = new QGridLayout;
+    auto *purgeval   = new QCheckBox;
+    auto *solval     = new QCheckBox;
+    auto *purgelabel = new QLabel("Remove existing files from directory");
+    auto *sollabel   = new QLabel("Download solutions");
+
+    purgeval->setCheckState(Qt::Unchecked);
+    purgeval->setObjectName("t_dirpurge");
+    solval->setCheckState(settings.value("solution", false).toBool() ? Qt::Checked : Qt::Unchecked);
+    solval->setObjectName("t_getsolution");
+    grid->addWidget(purgeval, 0, 0, Qt::AlignVCenter);
+    grid->addWidget(purgelabel, 0, 1, Qt::AlignVCenter);
+    grid->addWidget(solval, 1, 0, Qt::AlignVCenter);
+    grid->addWidget(sollabel, 1, 1, Qt::AlignVCenter);
+    grid->setColumnStretch(0, 0);
+    grid->setColumnStretch(1, 100);
+
+    // we have tutorials 1 to 8 currently available online
+
+    QCheckBox *webval = nullptr;
+    if ((ntutorial > 0) && (ntutorial < 9)) {
+        grid->addWidget(new QLabel, 2, 0, 1, 2, Qt::AlignVCenter);
+        webval = new QCheckBox;
+        webval->setCheckState(settings.value("webpage", true).toBool() ? Qt::Checked
+                                                                       : Qt::Unchecked);
+        webval->setObjectName("t_webopen");
+        grid->addWidget(webval, 3, 0, Qt::AlignVCenter);
+        grid->addWidget(new QLabel("Open tutorial webpage in web browser"), 3, 1, Qt::AlignVCenter);
+    }
+
+    auto *label2 = new QLabel(
+        QString("<hr width=\"33%\">\n<p align=\"center\">Click on "
+                "the \"Finish\" button to complete the setup and start the download.</p>"));
+    label->setWordWrap(true);
+
+    auto *layout = new QVBoxLayout(frame);
+    layout->addWidget(label);
+    layout->addLayout(dirlayout);
+    layout->addLayout(grid);
+    layout->addWidget(label2);
+    settings.endGroup();
+
+    page->setLayout(layout);
+    return page;
+}
+
 void LammpsGui::start_tutorial1()
 {
-    if (wizard) delete wizard;
-    wizard = new Tutorial1Wizard;
+    delete wizard;
+    wizard = new TutorialWizard(1);
+    const auto infotext =
+        QString("<p>In tutorial 1 you will learn about LAMMPS input files, their syntax and "
+                "structure, how to create and set up models and their interactions, how to run a "
+                "minimization and a molecular dynamics trajectory, how to plot thermodynamic data "
+                "and how to create visualizations of your system</p><hr width=\"33%\"\\>\n<p "
+                "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
     wizard->setFont(font());
-    wizard->addPage(tutorial1_intro());
-    wizard->addPage(tutorial1_info());
-    wizard->addPage(tutorial1_directory());
-    wizard->addPage(tutorial1_finish());
+    wizard->addPage(tutorial_intro(1, infotext));
+    wizard->addPage(tutorial_directory(1));
     wizard->setWindowTitle("Tutorial 1 Setup Wizard");
     wizard->setWizardStyle(QWizard::ModernStyle);
     wizard->show();
 }
 
-QWizardPage *LammpsGui::tutorial1_intro()
-{
-    auto *page = new QWizardPage;
-    page->setTitle("Getting Started With Tutorial 1");
-    page->setPixmap(QWizard::WatermarkPixmap, QPixmap(":/icons/tutorial1-logo.png"));
-
-    // XXX TODO: update URL to published tutorial DOI
-    auto *label =
-        new QLabel("<p>This wizard will help you to select and populate a folder with "
-                   "materials required to work through tutorial 1 from a fourthcoming "
-                   "LAMMPS tutorial using LAMMPS-GUI by Simon Gravelle, Jake Gissinger, "
-                   "and Axel Kohlmeyer.</p>\n"
-                   "The work-in-progress materials for this tutorial are available at: <a"
-                   "<b><a href=\"https://github.com/lammpstutorials/lammpstutorials-article\">"
-                   "github.com/lammpstutorials/lammpstutorials-article</a></b></p><br>\n"
-                   "<hr width=\"33%\"\\>\n"
-                   "<p align=\"center\">Click on the \"Next\" button to begin.</p>");
-    label->setWordWrap(true);
-
-    auto *layout = new QVBoxLayout;
-    layout->addWidget(label);
-    page->setLayout(layout);
-    return page;
-}
-
-QWizardPage *LammpsGui::tutorial1_info()
-{
-    auto *page = new QWizardPage;
-    page->setTitle("Contents of Tutorial 1");
-    page->setPixmap(QWizard::WatermarkPixmap, QPixmap(":/icons/tutorial1-logo.png"));
-
-    auto *label =
-        new QLabel("<p>In tutorial 1 you will learn about LAMMPS input files, their syntax and "
-                   " structure, how to create and set up models and their interactions, how to "
-                   "run a minimization and a molecular dynamics trajectory, how to plot "
-                   "thermodynamic data and how to create visualizations of your system</p>"
-                   "<hr width=\"33%\"\\>\n"
-                   "<p align=\"center\">Click on the \"Next\" button to select a folder.</p>");
-    label->setWordWrap(true);
-
-    auto *layout = new QVBoxLayout;
-    layout->addWidget(label);
-    page->setLayout(layout);
-    return page;
-}
-
-QWizardPage *LammpsGui::tutorial1_directory()
-{
-    auto *page = new QWizardPage;
-    page->setTitle("Select Directory for Tutorial 1");
-    page->setPixmap(QWizard::WatermarkPixmap, QPixmap(":/icons/tutorial1-logo.png"));
-
-    auto *frame = new QFrame;
-    auto *label = new QLabel(
-        "<p>Select a directory to store the files for tutorial 1.  The directory will be "
-        "created if necessary and LAMMPS-GUI will download the files required for the "
-        "tutorial.</p>\n"
-        "<p>If selected, an existing directory may be cleared.</p>\n"
-        "<p>Also, available files of the tutorial solution may be downloaded to a "
-        "folder \"solution\", if requested.</p>\n"
-        "<hr width=\"33%\">\n");
-    label->setWordWrap(true);
-
-    auto *dirlayout = new QHBoxLayout;
-    auto *directory = new QLineEdit;
-    // if we are already in the tutorial folder, stay there
-    if (!current_dir.endsWith("tutorial1")) {
-        // if current dir is home, or application folder, switch to desktop path
-        if ((current_dir == QDir::homePath()) || current_dir.contains("AppData") ||
-            current_dir.contains("Program Files")) {
-            current_dir = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
-        }
-        current_dir += "/tutorial1";
-    }
-    directory->setText(current_dir);
-
-    auto *dirbutton = new QPushButton("&Choose");
-    dirlayout->addWidget(directory);
-    dirlayout->addWidget(dirbutton);
-    directory->setObjectName("t1_directory");
-    connect(dirbutton, &QPushButton::released, this, &LammpsGui::get_directory);
-
-    auto *grid       = new QGridLayout;
-    auto *purgeval   = new QCheckBox;
-    auto *solval     = new QCheckBox;
-    auto *purgelabel = new QLabel("Remove existing files from directory");
-    auto *sollabel   = new QLabel("Download solutions");
-    purgeval->setCheckState(Qt::Unchecked);
-    purgeval->setObjectName("t1_dirpurge");
-    solval->setCheckState(Qt::Unchecked);
-    solval->setObjectName("t1_getsolution");
-    grid->addWidget(purgeval, 0, 0, Qt::AlignVCenter);
-    grid->addWidget(purgelabel, 0, 1, Qt::AlignVCenter);
-    grid->addWidget(solval, 1, 0, Qt::AlignVCenter);
-    grid->addWidget(sollabel, 1, 1, Qt::AlignVCenter);
-    grid->setColumnStretch(0, 0);
-    grid->setColumnStretch(1, 100);
-
-    auto *layout = new QVBoxLayout(frame);
-    layout->addWidget(label);
-    layout->addLayout(dirlayout);
-    layout->addLayout(grid);
-
-    page->setLayout(layout);
-    return page;
-}
-
-QWizardPage *LammpsGui::tutorial1_finish()
-{
-    auto *page = new QWizardPage;
-    page->setTitle("Start Tutorial 1");
-    page->setPixmap(QWizard::WatermarkPixmap, QPixmap(":/icons/tutorial1-logo.png"));
-
-    auto *label = new QLabel("<p align=\"center\">You are now ready to start tutorial 1.</p>\n"
-                             "<hr width=\"33%\"\\>\n"
-                             "<p align=\"center\">Click on the \"Finish\" button to "
-                             "complete the setup.</p>");
-    label->setWordWrap(true);
-
-    auto *layout = new QVBoxLayout;
-    layout->addWidget(label);
-    layout->setStretch(0, 100);
-
-    page->setLayout(layout);
-    return page;
-}
-
 void LammpsGui::start_tutorial2()
 {
-    if (wizard) delete wizard;
-    wizard = new Tutorial2Wizard;
-    wizard->addPage(tutorial2_intro());
-    wizard->addPage(tutorial2_info());
-    wizard->addPage(tutorial2_directory());
-    wizard->addPage(tutorial2_finish());
+    delete wizard;
+    wizard = new TutorialWizard(2);
+    const auto infotext =
+        QString("<p>In tutorial 2 you will learn about setting up a simulation for a molecular "
+                "system with bonds.  The target is to simulate a carbon nanotube with a "
+                "conventional molecular force field under growing strain and observe the response "
+                "to it.  Since bonds are represented by a harmonic potential, they cannot break.  "
+                "This is then compared to simulating the same system with a reactive force field "
+                "(AIREBO) where bonds may be broken and formed.</p><hr width=\"33%\"\\>\n<p "
+                "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
+    wizard->setFont(font());
+    wizard->addPage(tutorial_intro(2, infotext));
+    wizard->addPage(tutorial_directory(2));
     wizard->setWindowTitle("Tutorial 2 Setup Wizard");
     wizard->setWizardStyle(QWizard::ModernStyle);
     wizard->show();
 }
 
-QWizardPage *LammpsGui::tutorial2_intro()
+void LammpsGui::start_tutorial3()
 {
-    auto *page = new QWizardPage;
-    page->setTitle("Getting Started With Tutorial 2");
-    page->setPixmap(QWizard::WatermarkPixmap, QPixmap(":/icons/tutorial2-logo.png"));
-
-    // XXX TODO: update URL to published tutorial DOI
-    auto *label =
-        new QLabel("<p>This wizard will help you to select and populate a folder with "
-                   "materials required to work through tutorial 2 from a fourthcoming "
-                   "LAMMPS tutorial using LAMMPS-GUI by Simon Gravelle, Jake Gissinger, "
-                   "and Axel Kohlmeyer.</p>\n"
-                   "The work-in-progress materials for this tutorial are available at: <a"
-                   "<b><a href=\"https://github.com/lammpstutorials/lammpstutorials-article\">"
-                   "github.com/lammpstutorials/lammpstutorials-article</a></b></p><br>\n"
-                   "<hr width=\"33%\"\\>\n"
-                   "<p align=\"center\">Click on the \"Next\" button to begin.</p>");
-    label->setWordWrap(true);
-
-    auto *layout = new QVBoxLayout;
-    layout->addWidget(label);
-    page->setLayout(layout);
-    return page;
+    delete wizard;
+    wizard              = new TutorialWizard(3);
+    const auto infotext = QString(
+        "<p>In tutorial 3 you will learn setting up a multi-component, a polymer molecule embedded "
+        "in liquid water.  The model employs a long-range Coulomb solver and a stretching force is "
+        "applied to the polymer. This is used to demonstrate how to use the type label facility in "
+        "LAMMPS to make components more generic.</p><hr width=\"33%\"\\>\n<p "
+        "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
+    wizard->setFont(font());
+    wizard->addPage(tutorial_intro(3, infotext));
+    wizard->addPage(tutorial_directory(3));
+    wizard->setWindowTitle("Tutorial 3 Setup Wizard");
+    wizard->setWizardStyle(QWizard::ModernStyle);
+    wizard->show();
 }
 
-QWizardPage *LammpsGui::tutorial2_info()
+void LammpsGui::start_tutorial4()
 {
-    auto *page = new QWizardPage;
-    page->setTitle("Contents of Tutorial 2");
-    page->setPixmap(QWizard::WatermarkPixmap, QPixmap(":/icons/tutorial2-logo.png"));
-
-    auto *label =
-        new QLabel("<p>In tutorial 2 you will learn about setting up a simulation for a molecular "
-                   "system with bonds.  The target is to simulate a carbon nanotube with a "
-                   "conventional molecular force field under growing strain and observe the "
-                   "response to it.  Since bonds are represented by a harmonic potential, they "
-                   "cannot break.  This is then compared to simulating the same system with a "
-                   "reactive force field (AIREBO) where bonds may be broken and formed.</p>"
-                   "<hr width=\"33%\"\\>\n"
-                   "<p align=\"center\">Click on the \"Next\" button to select a folder.</p>");
-    label->setWordWrap(true);
-
-    auto *layout = new QVBoxLayout;
-    layout->addWidget(label);
-    page->setLayout(layout);
-    return page;
+    delete wizard;
+    wizard = new TutorialWizard(4);
+    const auto infotext =
+        QString("<p>In tutorial 4 an electrolyte is simulated while confined between two walls and "
+                "thus illustrating the specifics of simulating systems with fluid-solid "
+                "interfaces.  The water model is more complex than in tutorial 3 and also a "
+                "non-equilibrium MD simulation is performed by imposing shearing forces on the "
+                "electrolyte through moving the walls.</p><hr width=\"33%\"\\>\n<p "
+                "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
+    wizard->setFont(font());
+    wizard->addPage(tutorial_intro(4, infotext));
+    wizard->addPage(tutorial_directory(4));
+    wizard->setWindowTitle("Tutorial 4 Setup Wizard");
+    wizard->setWizardStyle(QWizard::ModernStyle);
+    wizard->show();
 }
 
-QWizardPage *LammpsGui::tutorial2_directory()
+void LammpsGui::start_tutorial5()
 {
-    auto *page = new QWizardPage;
-    page->setTitle("Select Directory for Tutorial 2");
-    page->setPixmap(QWizard::WatermarkPixmap, QPixmap(":/icons/tutorial2-logo.png"));
-
-    auto *frame = new QFrame;
-    auto *label = new QLabel(
-        "<p>Select a directory to store the files for tutorial 2.  The directory will be "
-        "created if necessary and LAMMPS-GUI will download the files required for the "
-        "tutorial.</p>\n"
-        "<p>If selected, an existing directory may be cleared.</p>\n"
-        "<p>Also, available files of the tutorial solution may be downloaded to a "
-        "folder \"solution\", if requested.</p>\n"
-        "<hr width=\"33%\">\n");
-    label->setWordWrap(true);
-
-    auto *dirlayout = new QHBoxLayout;
-    auto *directory = new QLineEdit;
-    // if we are already in the tutorial folder, stay there
-    if (!current_dir.endsWith("tutorial2")) {
-        // if current dir is home, or application folder, switch to desktop path
-        if ((current_dir == QDir::homePath()) || current_dir.contains("AppData") ||
-            current_dir.contains("Program Files")) {
-            current_dir = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
-        }
-        current_dir += "/tutorial2";
-    }
-    directory->setText(current_dir);
-
-    auto *dirbutton = new QPushButton("&Choose");
-    dirlayout->addWidget(directory);
-    dirlayout->addWidget(dirbutton);
-    directory->setObjectName("t2_directory");
-    connect(dirbutton, &QPushButton::released, this, &LammpsGui::get_directory);
-
-    auto *grid       = new QGridLayout;
-    auto *purgeval   = new QCheckBox;
-    auto *solval     = new QCheckBox;
-    auto *purgelabel = new QLabel("Remove existing files from directory");
-    auto *sollabel   = new QLabel("Download solutions");
-    purgeval->setCheckState(Qt::Unchecked);
-    purgeval->setObjectName("t2_dirpurge");
-    solval->setCheckState(Qt::Unchecked);
-    solval->setObjectName("t2_getsolution");
-    grid->addWidget(purgeval, 0, 0, Qt::AlignVCenter);
-    grid->addWidget(purgelabel, 0, 1, Qt::AlignVCenter);
-    grid->addWidget(solval, 1, 0, Qt::AlignVCenter);
-    grid->addWidget(sollabel, 1, 1, Qt::AlignVCenter);
-    grid->setColumnStretch(0, 0);
-    grid->setColumnStretch(1, 100);
-
-    auto *layout = new QVBoxLayout(frame);
-    layout->addWidget(label);
-    layout->addLayout(dirlayout);
-    layout->addLayout(grid);
-
-    page->setLayout(layout);
-    return page;
+    delete wizard;
+    wizard = new TutorialWizard(5);
+    const auto infotext =
+        QString("<p>Tutorial 5 demonstrates the use of the ReaxFF reactive force field which "
+                "includes a dynamic bond topology based on determining the bond order.  ReaxFF "
+                "includes charge equilibration (QEq) and thus the atoms can change their partial "
+                "charges according to the local environment.</p><hr width=\"33%\"\\>\n<p "
+                "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
+    wizard->setFont(font());
+    wizard->addPage(tutorial_intro(5, infotext));
+    wizard->addPage(tutorial_directory(5));
+    wizard->setWindowTitle("Tutorial 5 Setup Wizard");
+    wizard->setWizardStyle(QWizard::ModernStyle);
+    wizard->show();
 }
 
-QWizardPage *LammpsGui::tutorial2_finish()
+void LammpsGui::start_tutorial6()
 {
-    auto *page = new QWizardPage;
-    page->setTitle("Start Tutorial 2");
-    page->setPixmap(QWizard::WatermarkPixmap, QPixmap(":/icons/tutorial2-logo.png"));
+    delete wizard;
+    wizard              = new TutorialWizard(6);
+    const auto infotext = QString(
+        "<p>In tutorial 6 an MD simulation is combined with Monte Carlo (MC) steps to implement "
+        "a Grand Canonical ensemble.  This represents an open system where atoms or "
+        "molecules may be exchanged with a reservoir.</p><hr width=\"33%\"\\>\n<p "
+        "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
+    wizard->setFont(font());
+    wizard->addPage(tutorial_intro(6, infotext));
+    wizard->addPage(tutorial_directory(6));
+    wizard->setWindowTitle("Tutorial 6 Setup Wizard");
+    wizard->setWizardStyle(QWizard::ModernStyle);
+    wizard->show();
+}
 
-    auto *label = new QLabel("<p align=\"center\">You are now ready to start tutorial 2.</p>\n"
-                             "<hr width=\"33%\"\\>\n"
-                             "<p align=\"center\">Click on the \"Finish\" button to "
-                             "complete the setup.</p>");
-    label->setWordWrap(true);
+void LammpsGui::start_tutorial7()
+{
+    delete wizard;
+    wizard = new TutorialWizard(7);
+    const auto infotext =
+        QString("<p>In tutorial 7 you will determine the height of a free energy barrier through "
+                "using umbrella sampling.  This is one of many advanced methods using specific "
+                "reaction coordinates or so-called collective variables to map out relevant parts "
+                "of free energy landscapes, where unbiased MD or MC simulation may take too "
+                "long.</p><hr width=\"33%\"\\>\n<p align=\"center\">Click on the \"Next\" button "
+                "to select a folder.</p>");
+    wizard->setFont(font());
+    wizard->addPage(tutorial_intro(7, infotext));
+    wizard->addPage(tutorial_directory(7));
+    wizard->setWindowTitle("Tutorial 7 Setup Wizard");
+    wizard->setWizardStyle(QWizard::ModernStyle);
+    wizard->show();
+}
 
-    auto *layout = new QVBoxLayout;
-    layout->addWidget(label);
-    layout->setStretch(0, 100);
-
-    page->setLayout(layout);
-    return page;
+void LammpsGui::start_tutorial8()
+{
+    delete wizard;
+    wizard = new TutorialWizard(8);
+    const auto infotext =
+        QString("<p>In tutorial 8 a CNT embedded in a Nylon-6,6 polymer melt is simulated.  The "
+                "REACTER protocol is used to model the polymerization of Nylon without having to "
+                "employ far more computationally demanding models like ReaxFF.  Also, the "
+                "formation of water molecules is tracked over time.</p><hr width=\"33%\"\\>\n<p "
+                "align=\"center\">Click on the \"Next\" button to select a folder.</p>");
+    wizard->setFont(font());
+    wizard->addPage(tutorial_intro(8, infotext));
+    wizard->addPage(tutorial_directory(8));
+    wizard->setWindowTitle("Tutorial 8 Setup Wizard");
+    wizard->setWizardStyle(QWizard::ModernStyle);
+    wizard->show();
 }
 
 void LammpsGui::howto()
@@ -1872,13 +2044,25 @@ void LammpsGui::edit_variables()
     }
 }
 
+void LammpsGui::findandreplace()
+{
+    FindAndReplace find(ui->textEdit, this);
+    find.setFont(font());
+    find.setObjectName("find");
+    find.exec();
+}
+
 void LammpsGui::preferences()
 {
+    // default settings are committed to QSettings during initialization of LAMMPS-GUI
     QSettings settings;
-    int oldthreads = settings.value("nthreads", 1).toInt();
-    int oldaccel   = settings.value("accelerator", AcceleratorTab::None).toInt();
-    bool oldecho   = settings.value("echo", false).toBool();
-    bool oldcite   = settings.value("cite", false).toBool();
+    int oldthreads   = settings.value("nthreads", 1).toInt();
+    int oldaccel     = settings.value("accelerator", AcceleratorTab::None).toInt();
+    bool oldecho     = settings.value("echo", false).toBool();
+    bool oldcite     = settings.value("cite", false).toBool();
+    int oldiprec     = settings.value("intelprec", AcceleratorTab::Mixed).toInt();
+    bool oldgpuneigh = settings.value("gpuneigh", true).toBool();
+    bool oldgpupair  = settings.value("gpupaironly", false).toBool();
 
     Preferences prefs(&lammps);
     prefs.setFont(font());
@@ -1887,10 +2071,14 @@ void LammpsGui::preferences()
         // must delete LAMMPS instance after preferences have changed that require
         // using different command line flags when creating the LAMMPS instance like
         // suffixes or package commands
-        int newthreads = settings.value("nthreads", 1).toInt();
-        if ((oldaccel != settings.value("accelerator", AcceleratorTab::None).toInt()) ||
-            (oldthreads != newthreads) || (oldecho != settings.value("echo", false).toBool()) ||
-            (oldcite != settings.value("cite", false).toBool())) {
+        int newthreads = settings.value("nthreads", nthreads).toInt();
+        int newaccel   = settings.value("accelerator", AcceleratorTab::None).toInt();
+        int newiprec   = settings.value("intelprec", AcceleratorTab::Mixed).toInt();
+        if ((oldaccel != newaccel) || (oldthreads != newthreads) || (oldiprec != newiprec) ||
+            (oldecho != settings.value("echo", false).toBool()) ||
+            (oldcite != settings.value("cite", false).toBool()) ||
+            (oldgpuneigh != settings.value("gpuneigh", true).toBool()) ||
+            (oldgpupair != settings.value("gpupaironly", false).toBool())) {
             if (lammps.is_running()) {
                 stop_run();
                 runner->wait();
@@ -1899,8 +2087,16 @@ void LammpsGui::preferences()
             lammps.close();
             lammpsstatus->hide();
 #if defined(_OPENMP)
-            qputenv("OMP_NUM_THREADS", std::to_string(newthreads).c_str());
-            omp_set_num_threads(newthreads);
+            // reset nthreads if accelerator does not support threads
+            if ((newaccel == AcceleratorTab::Opt) || (newaccel == AcceleratorTab::None))
+                nthreads = 1;
+            else
+                nthreads = newthreads;
+
+            // reset number of threads in use
+            omp_set_num_threads(nthreads);
+#else
+            nthreads = 1;
 #endif
         }
         if (imagewindow) imagewindow->createImage();
@@ -1916,8 +2112,15 @@ void LammpsGui::start_lammps()
     // temporary extend lammps_args with additional arguments
     int initial_narg = lammps_args.size();
     QSettings settings;
-    int nthreads = settings.value("nthreads", 1).toInt();
-    int accel    = settings.value("accelerator", AcceleratorTab::None).toInt();
+    int accel = settings.value("accelerator", AcceleratorTab::None).toInt();
+    // if non-threaded accelerator selected reset threads
+#if defined(_OPENMP)
+    if ((accel == AcceleratorTab::None) || (accel == AcceleratorTab::Opt)) {
+        nthreads = 1;
+        omp_set_num_threads(nthreads);
+    }
+#endif
+
     if (accel == AcceleratorTab::Opt) {
         lammps_args.push_back(mystrdup("-suffix"));
         lammps_args.push_back(mystrdup("opt"));
@@ -1929,16 +2132,58 @@ void LammpsGui::start_lammps()
         lammps_args.push_back(mystrdup(std::to_string(nthreads)));
     } else if (accel == AcceleratorTab::Intel) {
         lammps_args.push_back(mystrdup("-suffix"));
-        lammps_args.push_back(mystrdup("intel"));
+        if (lammps.config_has_package("OPENMP")) {
+            lammps_args.push_back(mystrdup("hybrid"));
+            lammps_args.push_back(mystrdup("intel"));
+            lammps_args.push_back(mystrdup("omp"));
+            lammps_args.push_back(mystrdup("-pk"));
+            lammps_args.push_back(mystrdup("omp"));
+            lammps_args.push_back(mystrdup(std::to_string(nthreads)));
+        } else {
+            lammps_args.push_back(mystrdup("intel"));
+        }
         lammps_args.push_back(mystrdup("-pk"));
         lammps_args.push_back(mystrdup("intel"));
+        lammps_args.push_back(mystrdup("0"));
+        lammps_args.push_back(mystrdup("omp"));
         lammps_args.push_back(mystrdup(std::to_string(nthreads)));
+        lammps_args.push_back(mystrdup("mode"));
+        int iprec = settings.value("intelprec", AcceleratorTab::Mixed).toInt();
+        if (iprec == AcceleratorTab::Double)
+            lammps_args.push_back(mystrdup("double"));
+        else if (iprec == AcceleratorTab::Mixed)
+            lammps_args.push_back(mystrdup("mixed"));
+        else if (iprec == AcceleratorTab::Single)
+            lammps_args.push_back(mystrdup("single"));
+        else // use mixed precision for invalid value so there is no syntax error crash
+            lammps_args.push_back(mystrdup("mixed"));
     } else if (accel == AcceleratorTab::Gpu) {
         lammps_args.push_back(mystrdup("-suffix"));
-        lammps_args.push_back(mystrdup("gpu"));
+        if ((nthreads > 1) && lammps.config_has_package("OPENMP")) {
+            lammps_args.push_back(mystrdup("hybrid"));
+            lammps_args.push_back(mystrdup("gpu"));
+            lammps_args.push_back(mystrdup("omp"));
+            lammps_args.push_back(mystrdup("-pk"));
+            lammps_args.push_back(mystrdup("omp"));
+            lammps_args.push_back(mystrdup(std::to_string(nthreads)));
+        } else {
+            lammps_args.push_back(mystrdup("gpu"));
+        }
         lammps_args.push_back(mystrdup("-pk"));
         lammps_args.push_back(mystrdup("gpu"));
-        lammps_args.push_back(mystrdup("0"));
+        lammps_args.push_back(mystrdup("1")); // can use only one GPU without MPI
+        lammps_args.push_back(mystrdup("omp"));
+        lammps_args.push_back(mystrdup(std::to_string(nthreads)));
+        lammps_args.push_back(mystrdup("neigh"));
+        if (settings.value("gpuneigh", true).toBool())
+            lammps_args.push_back(mystrdup("yes"));
+        else
+            lammps_args.push_back(mystrdup("no"));
+        lammps_args.push_back(mystrdup("pair/only"));
+        if (settings.value("gpupaironly", false).toBool())
+            lammps_args.push_back(mystrdup("on"));
+        else
+            lammps_args.push_back(mystrdup("off"));
     } else if (accel == AcceleratorTab::Kokkos) {
         lammps_args.push_back(mystrdup("-kokkos"));
         lammps_args.push_back(mystrdup("on"));
@@ -1973,12 +2218,12 @@ void LammpsGui::start_lammps()
     lammps.open(narg, args);
     lammpsstatus->show();
 
-    // must have a version newer than the 2 August 2023 release of LAMMPS
+    // must have a version newer than the 29 August 2024 release of LAMMPS
     // TODO: must update this check before next feature release
-    if (lammps.version() <= 20230802) {
+    if (lammps.version() < 20240829) {
         QMessageBox::critical(this, "Incompatible LAMMPS Version",
                               "LAMMPS-GUI version " LAMMPS_GUI_VERSION " requires\n"
-                              "a LAMMPS version more recent than 2 August 2023");
+                              "a LAMMPS version of at least 29 August 2024");
         exit(1);
     }
 
@@ -1989,9 +2234,8 @@ void LammpsGui::start_lammps()
     }
 
     if (lammps.has_error()) {
-        constexpr int BUFLEN = 1024;
-        char errorbuf[BUFLEN];
-        lammps.get_last_error_message(errorbuf, BUFLEN);
+        char errorbuf[DEFAULT_BUFLEN];
+        lammps.get_last_error_message(errorbuf, DEFAULT_BUFLEN);
 
         QMessageBox::critical(this, "LAMMPS-GUI Error",
                               QString("Error launching LAMMPS:\n\n") + errorbuf);
@@ -2002,40 +2246,97 @@ bool LammpsGui::eventFilter(QObject *watched, QEvent *event)
 {
     if (event->type() == QEvent::Close) {
         autoSave();
+        quit();
+        return true;
     }
     return QWidget::eventFilter(watched, event);
 }
 
-// LAMMPS geturl command with current location of the input and solution files on the web
-static const QString geturl = "geturl https://raw.githubusercontent.com/akohlmey/"
-                              "lammps-tutorials-inputs/main/tutorial%1/%2 output %2 verify no";
+// LAMMPS geturl command template with current location of the input and solution files on the web
+static const QString geturl =
+    "geturl https://raw.githubusercontent.com/lammpstutorials/"
+    "lammpstutorials-article/refs/heads/main/files/tutorial%1/%2 output %2 verify no";
 
-void LammpsGui::setup_tutorial(int tutno, const QString &dir, bool purgedir, bool getsolution)
+void LammpsGui::setup_tutorial(int tutno, const QString &dir, bool purgedir, bool getsolution,
+                               bool openwebpage)
 {
+    char errorbuf[DEFAULT_BUFLEN];
+
+    if (!lammps.config_has_curl_support()) {
+        QMessageBox::critical(this, "LAMMPS-GUI tutorial files download error",
+                              "<p align=\"center\">LAMMPS must be compiled with libcurl to support "
+                              "downloading files</p>");
+        return;
+    }
+
     QDir directory(dir);
     directory.cd(dir);
+
+    // open web page of the corresponding online tutorial
+    if (openwebpage) {
+        QString weburl = "https://lammpstutorials.github.io/sphinx/build/html/tutorial%1/%2.html";
+        switch (tutno) {
+            case 1:
+                weburl = weburl.arg(tutno).arg("lennard-jones-fluid");
+                break;
+            case 2:
+                weburl = weburl.arg(tutno).arg("breaking-a-carbon-nanotube");
+                break;
+            case 3:
+                weburl = weburl.arg(tutno).arg("polymer-in-water");
+                break;
+            case 4:
+                weburl = weburl.arg(tutno).arg("nanosheared-electrolyte");
+                break;
+            case 5:
+                weburl = weburl.arg(tutno).arg("reactive-silicon-dioxide");
+                break;
+            case 6:
+                weburl = weburl.arg(tutno).arg("water-adsorption-in-silica");
+                break;
+            case 7:
+                weburl = weburl.arg(tutno).arg("free-energy-calculation");
+                break;
+            case 8:
+                weburl = weburl.arg(tutno).arg("reactive-molecular-dynamics");
+                break;
+            default:
+                weburl = "https://lammpstutorials.github.io/";
+        }
+        QDesktopServices::openUrl(QUrl(weburl));
+    }
 
     if (purgedir) purge_directory(dir);
     if (getsolution) directory.mkpath("solution");
 
     start_lammps();
     lammps.command("clear");
-    lammps.command(QString("shell cd " + dir).toStdString().c_str());
+    lammps.command(QString("shell cd " + dir));
+
+    // apply https proxy setting: prefer environment variable or fall back to preferences value
+    auto https_proxy = QString::fromLocal8Bit(qgetenv("https_proxy"));
+    if (https_proxy.isEmpty()) https_proxy = QSettings().value("https_proxy", "").toString();
+    if (!https_proxy.isEmpty()) lammps.command(QString("shell putenv https_proxy=") + https_proxy);
 
     // download and process manifest for selected tutorial
     // must check for error after download, e.g. when there is no network.
-
-    lammps.command(geturl.arg(tutno).arg(".manifest").toStdString().c_str());
+    lammps.command(geturl.arg(tutno).arg(".manifest"));
     if (lammps.has_error()) {
-        constexpr int BUFLEN = 1024;
-        char errorbuf[BUFLEN];
-        lammps.get_last_error_message(errorbuf, BUFLEN);
-        QMessageBox::critical(this, "LAMMPS-GUI download error", QString(errorbuf));
+        lammps.get_last_error_message(errorbuf, DEFAULT_BUFLEN);
+        QMessageBox::critical(this, "LAMMPS-GUI tutorial download error", QString(errorbuf));
         return;
     }
 
     QFile manifest(".manifest");
     QString line, first;
+    struct DownloadItem {
+        DownloadItem(int _n, const QString &_f) : ntutorial(_n), fname(_f) {}
+
+        int ntutorial;
+        QString fname;
+    };
+
+    QList<DownloadItem> downloads;
     if (manifest.open(QIODevice::ReadOnly)) {
         while (!manifest.atEnd()) {
             line = (const char *)manifest.readLine();
@@ -2047,21 +2348,74 @@ void LammpsGui::setup_tutorial(int tutno, const QString &dir, bool purgedir, boo
             // file in subfolder
             if (line.contains('/')) {
                 if (getsolution && line.startsWith("solution")) {
-                    lammps.command(geturl.arg(tutno).arg(line).toStdString().c_str());
+                    downloads.append(DownloadItem(tutno, line));
                 }
             } else {
                 // first file is the initial template
                 if (first.isEmpty()) first = line;
-                lammps.command(geturl.arg(tutno).arg(line).toStdString().c_str());
+                downloads.append(DownloadItem(tutno, line));
             }
         }
         manifest.close();
         manifest.remove();
     }
+
+    int i   = 0;
+    int num = downloads.size();
+    if (!num) num = 1;
+
+    progress->setValue(0);
+    progress->show();
+    dirstatus->hide();
+
+    for (const auto &item : downloads) {
+        ++i;
+        status->setText(QString("Downloading file %1 of %2").arg(i).arg(num));
+        progress->setValue((int)((double)i / ((double)num) * 1000.0));
+        status->repaint();
+        lammps.command(geturl.arg(item.ntutorial).arg(item.fname));
+
+        // download failed. abort, restore status line, and launch error dialog
+        if (lammps.has_error()) {
+            status->setText("Error.");
+            progress->hide();
+            dirstatus->show();
+            status->repaint();
+            lammps.get_last_error_message(errorbuf, DEFAULT_BUFLEN);
+            QMessageBox::critical(this, "LAMMPS-GUI tutorial download error", QString(errorbuf));
+            return;
+        }
+
+        // check if download is a placeholder for a symbolic link and make a copy instead.
+        QFile dlfile(item.fname);
+        QFileInfo dlpath(item.fname);
+        if (dlfile.open(QIODevice::ReadOnly)) {
+            line = (const char *)dlfile.readLine();
+            line = line.trimmed();
+            dlfile.close();
+
+#if defined(_WIN32)
+            if (line == QString("../") + dlpath.fileName())
+                // must replace "/" path separator with "\" on Windows
+                lammps.command(QString("shell copy /y %1 %2")
+                                   .arg(dlpath.fileName())
+                                   .arg(QString(item.fname).replace('/', '\\')));
+#else
+            if (line == QString("../") + dlpath.fileName())
+                lammps.command(QString("shell cp -f %1 %2").arg(dlpath.fileName()).arg(item.fname));
+#endif
+        }
+    }
+    progress->setValue(1000);
+    status->setText("Ready.");
+    progress->hide();
+    dirstatus->show();
+    status->repaint();
     if (!first.isEmpty()) open_file(first);
 }
 
-Tutorial1Wizard::Tutorial1Wizard(QWidget *parent) : QWizard(parent)
+TutorialWizard::TutorialWizard(int ntutorial, QWidget *parent) :
+    QWizard(parent), _ntutorial(ntutorial)
 {
     setWindowIcon(QIcon(":/icons/tutorial-logo.png"));
 }
@@ -2069,74 +2423,43 @@ Tutorial1Wizard::Tutorial1Wizard(QWidget *parent) : QWizard(parent)
 // actions to perform when the wizard for tutorial 1 is complete
 // and the user has clicked on "Finish"
 
-void Tutorial1Wizard::accept()
+void TutorialWizard::accept()
 {
     // get pointers to the widgets with the information we need
-    auto *dirname  = findChild<QLineEdit *>("t1_directory");
-    auto *dirpurge = findChild<QCheckBox *>("t1_dirpurge");
-    auto *getsol   = findChild<QCheckBox *>("t1_getsolution");
+    auto *dirname    = findChild<QLineEdit *>("t_directory");
+    auto *dirpurge   = findChild<QCheckBox *>("t_dirpurge");
+    auto *getsol     = findChild<QCheckBox *>("t_getsolution");
+    auto *webopen    = findChild<QCheckBox *>("t_webopen");
+    bool purgedir    = false;
+    bool getsolution = false;
+    bool openwebpage = false;
+    QString curdir;
+
+    if (webopen) openwebpage = (webopen->checkState() == Qt::Checked);
 
     // create and populate directory.
     if (dirname) {
         QDir directory;
-        auto curdir = dirname->text().trimmed();
+        curdir = dirname->text().trimmed();
         if (!directory.mkpath(curdir)) {
             QMessageBox::warning(this, "Warning",
-                                 "Cannot create tutorial 1 working directory " + curdir +
-                                     ".\n\nGoing back to directory selection.");
+                                 "Cannot create tutorial " + QString::number(_ntutorial) +
+                                     " working directory '" + curdir +
+                                     "'.\n\nGoing back to directory selection.");
             back();
             return;
         }
 
-        bool purgedir    = dirpurge && (dirpurge->checkState() == Qt::Checked);
-        bool getsolution = getsol && (getsol->checkState() == Qt::Checked);
-
-        // get hold of LAMMPS-GUI main widget
-        LammpsGui *main = nullptr;
-        for (QWidget *widget : QApplication::topLevelWidgets())
-            if (widget->objectName() == "LammpsGui") main = dynamic_cast<LammpsGui *>(widget);
-        if (main) main->setup_tutorial(1, curdir, purgedir, getsolution);
+        purgedir    = dirpurge && (dirpurge->checkState() == Qt::Checked);
+        getsolution = getsol && (getsol->checkState() == Qt::Checked);
     }
     QDialog::accept();
-}
 
-Tutorial2Wizard::Tutorial2Wizard(QWidget *parent) : QWizard(parent)
-{
-    setWindowIcon(QIcon(":/icons/tutorial-logo.png"));
-}
-
-// actions to perform when the wizard for tutorial 2 is complete
-// and the user has clicked on "Finish"
-
-void Tutorial2Wizard::accept()
-{
-    // get pointers to the widgets with the information we need
-    auto *dirname  = findChild<QLineEdit *>("t2_directory");
-    auto *dirpurge = findChild<QCheckBox *>("t2_dirpurge");
-    auto *getsol   = findChild<QCheckBox *>("t2_getsolution");
-
-    // create and populate directory.
+    // get hold of LAMMPS-GUI main widget
     if (dirname) {
-        QDir directory;
-        auto curdir = dirname->text().trimmed();
-        if (!directory.mkpath(curdir)) {
-            QMessageBox::warning(this, "Warning",
-                                 "Cannot create tutorial 2 working directory " + curdir +
-                                     ".\n\nGoing back to directory selection.");
-            back();
-            return;
-        }
-
-        bool purgedir    = dirpurge && (dirpurge->checkState() == Qt::Checked);
-        bool getsolution = getsol && (getsol->checkState() == Qt::Checked);
-
-        // get hold of LAMMPS-GUI main widget
-        LammpsGui *main = nullptr;
-        for (QWidget *widget : QApplication::topLevelWidgets())
-            if (widget->objectName() == "LammpsGui") main = dynamic_cast<LammpsGui *>(widget);
-        if (main) main->setup_tutorial(2, curdir, purgedir, getsolution);
+        auto *main = dynamic_cast<LammpsGui *>(get_main_widget());
+        if (main) main->setup_tutorial(_ntutorial, curdir, purgedir, getsolution, openwebpage);
     }
-    QDialog::accept();
 }
 
 // Local Variables:

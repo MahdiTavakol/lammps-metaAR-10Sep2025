@@ -8,6 +8,8 @@ send an email to all of them at this address: "developers at
 lammps.org".  General questions about LAMMPS should be posted in the
 `LAMMPS forum on MatSci <https://matsci.org/lammps/>`_.
 
+.. We need to keep this file in sync with https://www.lammps.org/authors.html
+
 .. raw:: latex
 
    \small
@@ -27,7 +29,7 @@ lammps.org".  General questions about LAMMPS should be posted in the
    * - `Steve Plimpton <sjp_>`_
      - SNL (retired)
      - sjplimp at gmail.com
-     - MD kernels, parallel algorithms & scalability, code structure and design
+     - original author, MD kernels, parallel algorithms & scalability, code structure and design
    * - `Aidan Thompson <at_>`_
      - SNL
      - athomps at sandia.gov
@@ -51,15 +53,15 @@ lammps.org".  General questions about LAMMPS should be posted in the
    * - `Jacob R. Gissinger <jg_>`_
      - Stevens Institute of Technology
      - jgissing at stevens.edu
-     - reactive molecular dynamics, macromolecular systems, type labels
+     - reactive molecular dynamics, macro-molecular systems, type labels
    * - James Goff
      - SNL
      - jmgoff at sandia.gov
      - machine learned potentials, QEq solvers, Python
-   * - Megan McCarthy
+   * - Meg McCarthy
      - SNL
      - megmcca at sandia.gov
-     - alloys, microstucture, machine learned potentials
+     - alloys, micro-structure, machine learned potentials
    * - Stan Moore
      - SNL
      - stamoor at sandia.gov
@@ -67,7 +69,7 @@ lammps.org".  General questions about LAMMPS should be posted in the
    * - `Trung Nguyen <tn_>`_
      - U Chicago
      - ndactrung at gmail.com
-     - soft matter, GPU package
+     - soft matter, GPU package, DIELECTRIC package, regression testing
 
 .. _rb:  https://rbberger.github.io/
 .. _gc:  https://enthalpiste.fr/
@@ -82,8 +84,9 @@ lammps.org".  General questions about LAMMPS should be posted in the
 
    \normalsize
 
-Past developers include Paul Crozier and Mark Stevens, both at SNL,
-and Ray Shan, now at Materials Design.
+Past core developers include Paul Crozier and Mark Stevens, both at SNL,
+and Ray Shan while at SNL and later at Materials Design, now at Thermo
+Fisher Scientific.
 
 ----------
 

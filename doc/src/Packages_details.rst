@@ -28,6 +28,7 @@ gives those details.
 
    * :ref:`ADIOS <PKG-ADIOS>`
    * :ref:`AMOEBA <PKG-AMOEBA>`
+   * :ref:`APIP <PKG-APIP>`
    * :ref:`ASPHERE <PKG-ASPHERE>`
    * :ref:`ATC <PKG-ATC>`
    * :ref:`AWPMD <PKG-AWPMD>`
@@ -183,6 +184,60 @@ provided by the Ponder group in their
 * :doc:`fix amoeba/pitorsion <fix_amoeba_pitorsion>`
 * tools/tinker/tinker2lmp.py
 * ``examples/amoeba``
+
+----------
+
+.. _PKG-APIP:
+
+APIP package
+------------
+
+**Contents:**
+
+This package provides adaptive-precision interatomic potentials (APIP) as
+described in:
+
+D. Immel, R. Drautz and G. Sutmann, "Adaptive-precision potentials for
+large-scale atomistic simulations", J. Chem. Phys. 162, 114119 (2025)
+`link <immel2025_doi_>`_
+
+Adaptive-precision means, that a fast interatomic potential, such as EAM,
+is coupled to a precise interatomic potential, such as ACE.
+This package provides the required pair_styles and fixes to run an efficient,
+energy-conserving adaptive-precision simulation.
+
+In the context of this package, precision refers to the accuracy of an interatomic
+potential.
+
+.. _immel2025_doi: https://doi.org/10.1063/5.0245877
+
+**Authors:**
+
+This package was written by David Immel^1,
+Ralf Drautz^2 and Godehard Sutmann^1^2.
+
+ ^1: Forschungszentrum Juelich, Juelich, Germany
+
+ ^2: Ruhr-University Bochum, Bochum, Germany
+
+**Install:**
+
+The APIP package requires also the installation of ML-PACE, which has
+:ref:`specific installation instructions <ml-pace>` on the
+:doc:`Build extras <Build_extras>` page.
+
+**Supporting info:**
+
+* ``src/APIP``: filenames -> commands
+* :doc:`Howto APIP <Howto_apip>`
+* ``examples/PACKAGES/apip``
+* :doc:`fix atom_weight/apip <fix_atom_weight_apip>`
+* :doc:`fix lambda/apip <fix_lambda_apip>`
+* :doc:`fix lambda_thermostat/apip <fix_lambda_thermostat_apip>`
+* :doc:`pair_style eam/apip <pair_eam_apip>`
+* :doc:`pair_style lambda/zone/apip <pair_lambda_zone_apip>`
+* :doc:`pair_style lambda/input/apip <pair_lambda_input_apip>`
+* :doc:`pair_style pace/apip <pair_pace_apip>`
 
 ----------
 
@@ -880,7 +935,7 @@ groups of atoms that interact with the remaining atoms as electrolyte.
 
 **Authors:** The ELECTRODE package is written and maintained by Ludwig
 Ahrens-Iwers (TUHH, Hamburg, Germany), Shern Tee (UQ, Brisbane, Australia) and
-Robert Meissner (TUHH, Hamburg, Germany).
+Robert Meissner (Helmholtz-Zentrum Hereon, Geesthacht and TUHH, Hamburg, Germany).
 
 .. versionadded:: 4May2022
 
@@ -994,6 +1049,7 @@ Additional pair styles that are less commonly used.
 
 * ``src/EXTRA-PAIR``: filenames -> commands
 * :doc:`pair_style <pair_style>`
+* ``examples/PACKAGES/dispersion``
 
 ----------
 
@@ -1823,7 +1879,8 @@ Aidan Thompson^3, Gabor Csanyi^2, Christoph Ortner^4, Ralf Drautz^1.
 **Install:**
 
 This package has :ref:`specific installation instructions <ml-pace>` on the
-:doc:`Build extras <Build_extras>` page.
+:doc:`Build extras <Build_extras>` page.  This package may also be compiled
+as a plugin to avoid licensing conflicts when distributing binaries.
 
 **Supporting info:**
 
@@ -2170,8 +2227,8 @@ the :doc:`Build extras <Build_extras>` page.
 * ``src/OPENMP/README``
 * :doc:`Accelerator packages <Speed_packages>`
 * :doc:`OPENMP package <Speed_omp>`
-* :doc:`Command line option -suffix/-sf omp <Run_options>`
-* :doc:`Command line option -package/-pk omp <Run_options>`
+* :doc:`Command-line option -suffix/-sf omp <Run_options>`
+* :doc:`Command-line option -package/-pk omp <Run_options>`
 * :doc:`package omp <package>`
 * Search the :doc:`commands <Commands_all>` pages (:doc:`fix <Commands_fix>`, :doc:`compute <Commands_compute>`,
   :doc:`pair <Commands_pair>`, :doc:`bond, angle, dihedral, improper <Commands_bond>`,
@@ -2344,7 +2401,9 @@ and Gareth Tribello.
 
 **Install:**
 
-This package has :ref:`specific installation instructions <plumed>` on the :doc:`Build extras <Build_extras>` page.
+This package has :ref:`specific installation instructions <plumed>` on the
+:doc:`Build extras <Build_extras>` page.  This package may also be compiled
+as a plugin to avoid licensing conflicts when distributing binaries.
 
 **Supporting info:**
 
@@ -2424,7 +2483,7 @@ ways to use LAMMPS and Python together.
 
    Building with the PYTHON package assumes you have a Python development
    environment (headers and libraries) available on your system, which needs
-   to be either Python version 2.7 or Python 3.5 and later.
+   to be Python version 3.6 or later.
 
 **Install:**
 
@@ -2642,7 +2701,7 @@ This package has :ref:`specific installation instructions <rheo>` on the :doc:`B
 **Authors:** Joel T. Clemmer (Sandia National Labs),
 Thomas C. O'Connor (Carnegie Mellon University)
 
-.. versionadded:: TBD
+.. versionadded:: 29Aug2024
 
 **Supporting info:**
 
@@ -2786,14 +2845,15 @@ implements smoothed particle hydrodynamics (SPH) for liquids.  See the
 related :ref:`MACHDYN package <PKG-MACHDYN>` package for smooth Mach dynamics
 (SMD) for solids.
 
-This package contains ideal gas, Lennard-Jones equation of states,
-Tait, and full support for complete (i.e. internal-energy dependent)
-equations of state.  It allows for plain or Monaghans XSPH integration
-of the equations of motion.  It has options for density continuity or
-density summation to propagate the density field.  It has
-:doc:`set <set>` command options to set the internal energy and density
-of particles from the input script and allows the same quantities to
-be output with thermodynamic output or to dump files via the :doc:`compute property/atom <compute_property_atom>` command.
+This package contains ideal gas, Lennard-Jones equation of states, Tait,
+and full support for complete (i.e. internal-energy dependent) equations
+of state.  It allows for plain or Monaghans XSPH integration of the
+equations of motion.  It has options for density continuity or density
+summation to propagate the density field.  It has :doc:`set <set>`
+command options to set the internal energy and density of particles from
+the input script and allows the same quantities to be output with
+thermodynamic output or to dump files via the :doc:`compute
+property/atom <compute_property_atom>` command.
 
 **Author:** Georg Ganzenmuller (Fraunhofer-Institute for High-Speed
 Dynamics, Ernst Mach Institute, Germany).
@@ -2805,6 +2865,17 @@ Dynamics, Ernst Mach Institute, Germany).
 * `doc/PDF/SPH_LAMMPS_userguide.pdf <PDF/SPH_LAMMPS_userguide.pdf>`_
 * ``examples/PACKAGES/sph``
 * https://www.lammps.org/movies.html#sph
+
+.. note::
+
+   Please note that the SPH PDF guide file has not been updated for
+   many years and thus does not reflect the current *syntax* of the
+   SPH package commands. For that please refer to the LAMMPS manual.
+
+.. note::
+
+   Please also note, that the :ref:`RHEO package <PKG-RHEO>` offers
+   similar functionality in a more modern and flexible implementation.
 
 ----------
 
