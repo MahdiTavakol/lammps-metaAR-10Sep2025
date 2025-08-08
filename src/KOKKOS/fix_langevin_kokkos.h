@@ -53,8 +53,8 @@ namespace LAMMPS_NS {
   template <class DeviceType>
   struct FixLangevinKokkosInitialIntegrateFunctor;
 
-  template<class DeviceType,int Tp_TSTYLEATOM, int Tp_GJF, int Tp_TALLY,
-    int Tp_BIAS, int Tp_RMASS, int Tp_ZERO>
+  template<class DeviceType,int Tp_TSTYLEATOM, int Tp_TALLY, int Tp_BIAS,
+           int Tp_RMASS, int Tp_ZERO>
   struct FixLangevinKokkosPostForceFunctor;
 
   template<class DeviceType> struct FixLangevinKokkosZeroForceFunctor;
@@ -69,8 +69,6 @@ namespace LAMMPS_NS {
 
     void init() override;
     void setup(int) override;
-    void initial_integrate(int) override;
-    void fused_integrate(int) override;
     void post_force(int) override;
     void reset_dt() override;
     void grow_arrays(int) override;
@@ -79,14 +77,7 @@ namespace LAMMPS_NS {
     double compute_scalar() override;
     void end_of_step() override;
 
-    KOKKOS_INLINE_FUNCTION
-      void initial_integrate_item(int) const;
-
-    KOKKOS_INLINE_FUNCTION
-      void initial_integrate_rmass_item(int) const;
-
-    template<int Tp_TSTYLEATOM, int Tp_GJF, int Tp_TALLY,
-      int Tp_BIAS, int Tp_RMASS, int Tp_ZERO>
+    template<int Tp_TSTYLEATOM, int Tp_TALLY, int Tp_BIAS, int Tp_RMASS, int Tp_ZERO>
       KOKKOS_INLINE_FUNCTION
       FSUM post_force_item(int) const;
 
@@ -136,7 +127,7 @@ namespace LAMMPS_NS {
     typename tdual_double_1d_3n::t_dev d_fsumall;
     typename tdual_double_1d_3n::t_host h_fsumall;
 
-    double boltz,dt,mvv2e,ftm2v,fran_prop_const,fran_prop_const_gjf;
+    double boltz,dt,mvv2e,ftm2v,fran_prop_const;
 
     void compute_target();
 
@@ -168,8 +159,8 @@ namespace LAMMPS_NS {
   };
 
 
-  template <class DeviceType,int Tp_TSTYLEATOM, int Tp_GJF, int Tp_TALLY,
-    int Tp_BIAS, int Tp_RMASS, int Tp_ZERO>
+  template <class DeviceType,int Tp_TSTYLEATOM, int Tp_TALLY, int Tp_BIAS,
+            int Tp_RMASS, int Tp_ZERO>
     struct FixLangevinKokkosPostForceFunctor {
       typedef DeviceType  device_type;
       typedef FSUM value_type;
@@ -181,15 +172,13 @@ namespace LAMMPS_NS {
 
       KOKKOS_INLINE_FUNCTION
       void operator()(const int i) const {
-        c.template post_force_item<Tp_TSTYLEATOM,Tp_GJF, Tp_TALLY,
-          Tp_BIAS,Tp_RMASS,Tp_ZERO>(i);
+        c.template post_force_item<Tp_TSTYLEATOM,Tp_TALLY,Tp_BIAS,Tp_RMASS,Tp_ZERO>(i);
       }
 
       KOKKOS_INLINE_FUNCTION
       void operator()(const int i, value_type &fsum) const {
 
-        fsum += c.template post_force_item<Tp_TSTYLEATOM,Tp_GJF, Tp_TALLY,
-          Tp_BIAS,Tp_RMASS,Tp_ZERO>(i);
+        fsum += c.template post_force_item<Tp_TSTYLEATOM,Tp_TALLY,Tp_BIAS,Tp_RMASS,Tp_ZERO>(i);
       }
 
       KOKKOS_INLINE_FUNCTION

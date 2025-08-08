@@ -47,7 +47,7 @@ class FixLangevin : public Fix {
   int unpack_exchange(int, double *) override;
 
  protected:
-  int gjfflag, nvalues, osflag, oflag, tallyflag, zeroflag, tbiasflag;
+  int nvalues, osflag, oflag, tallyflag, zeroflag, tbiasflag;
   int flangevin_allocated;
   double ascale;
   double t_start, t_stop, t_period, t_target;
@@ -55,7 +55,6 @@ class FixLangevin : public Fix {
   double energy, energy_onestep;
   double tsqrt;
   int tstyle, tvar;
-  double gjfa, gjfsib;    //gjf a and gjf sqrt inverse b
   char *tstr;
 
   class AtomVecEllipsoid *avec;
@@ -73,7 +72,7 @@ class FixLangevin : public Fix {
   class RanMars *random;
   int seed;
 
-  template <int Tp_TSTYLEATOM, int Tp_GJF, int Tp_TALLY, int Tp_BIAS, int Tp_RMASS, int Tp_ZERO>
+  template <int Tp_TSTYLEATOM, int Tp_TALLY, int Tp_BIAS, int Tp_RMASS, int Tp_ZERO>
   void post_force_templated();
 
   void omega_thermostat();
