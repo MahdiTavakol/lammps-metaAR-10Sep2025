@@ -17,7 +17,7 @@ Neighbor style and comm mode multi/old
 
 .. deprecated:: TBD
 
-The orignal implementation of neighbor style multi and comm mode multi,
+The original implementation of neighbor style multi and comm mode multi,
 most recently available under "multi/old" has been removed.  The new
 implementation should be used instead.
 
