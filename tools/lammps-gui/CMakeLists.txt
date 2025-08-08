@@ -408,7 +408,7 @@ elseif((CMAKE_SYSTEM_NAME STREQUAL "Linux") AND NOT LAMMPS_GUI_USE_PLUGIN)
 
   add_custom_target(tgz
     COMMAND ${LAMMPS_DIR}/cmake/packaging/build_linux_tgz.sh ${LAMMPS_RELEASE}
-    DEPENDS lammps-gui ${WHAM_EXE}
+    DEPENDS lmp lammps-gui ${WHAM_EXE}
     COMMENT "Create compressed tar file of LAMMPS-GUI with dependent libraries and wrapper"
     BYPRODUCT LAMMPS-Linux-amd64-${LAMMPS_RELEASE}.tar.gz
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
