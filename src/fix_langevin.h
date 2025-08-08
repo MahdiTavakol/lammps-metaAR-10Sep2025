@@ -31,7 +31,6 @@ class FixLangevin : public Fix {
   int setmask() override;
   void init() override;
   void setup(int) override;
-  void initial_integrate(int) override;
   void post_force(int) override;
   void post_force_respa(int, int, int) override;
   void end_of_step() override;

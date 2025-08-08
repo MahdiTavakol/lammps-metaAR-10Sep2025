@@ -50,9 +50,6 @@ namespace LAMMPS_NS {
   template<class DeviceType>
   class FixLangevinKokkos;
 
-  template <class DeviceType>
-  struct FixLangevinKokkosInitialIntegrateFunctor;
-
   template<class DeviceType,int Tp_TSTYLEATOM, int Tp_TALLY, int Tp_BIAS,
            int Tp_RMASS, int Tp_ZERO>
   struct FixLangevinKokkosPostForceFunctor;
@@ -143,21 +140,6 @@ namespace LAMMPS_NS {
 #endif
 
   };
-
-  template <class DeviceType>
-  struct FixLangevinKokkosInitialIntegrateFunctor  {
-    typedef DeviceType  device_type ;
-    FixLangevinKokkos<DeviceType> c;
-
-  FixLangevinKokkosInitialIntegrateFunctor(FixLangevinKokkos<DeviceType>* c_ptr):
-    c(*c_ptr) {c.set_copymode(1);};
-
-    KOKKOS_INLINE_FUNCTION
-    void operator()(const int i) const {
-      c.initial_integrate_item(i);
-    }
-  };
-
 
   template <class DeviceType,int Tp_TSTYLEATOM, int Tp_TALLY, int Tp_BIAS,
             int Tp_RMASS, int Tp_ZERO>
