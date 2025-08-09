@@ -137,6 +137,12 @@ int get_pte_from_mass(double mass)
 }
 
 const QString blank(" ");
+constexpr double VDW_ON    = 1.6;
+constexpr double VDW_OFF   = 0.5;
+constexpr double VDW_CUT   = 1.0;
+constexpr double SHINY_ON  = 0.6;
+constexpr double SHINY_OFF = 0.2;
+constexpr double SHINY_CUT = 0.4;
 } // namespace
 
 ImageViewer::ImageViewer(const QString &fileName, LammpsWrapper *_lammps, QWidget *parent) :
@@ -158,13 +164,24 @@ ImageViewer::ImageViewer(const QString &fileName, LammpsWrapper *_lammps, QWidge
     auto *mainLayout = new QVBoxLayout;
 
     QSettings settings;
-
-    vdwfactor   = 0.5;
-    autobond    = false;
-    bondcutoff  = 1.6;
-    shinyfactor = 0.6;
-    auto pix    = QPixmap(":/icons/emblem-photos.png");
+    settings.beginGroup("snapshot");
+    xsize       = settings.value("xsize", "600").toInt();
+    ysize       = settings.value("ysize", "600").toInt();
+    zoom        = settings.value("zoom", 1.0).toDouble();
+    hrot        = settings.value("hrot", 60).toInt();
+    vrot        = settings.value("vrot", 30).toInt();
+    shinyfactor = settings.value("shinystyle", true).toBool() ? SHINY_ON : SHINY_OFF;
+    vdwfactor   = settings.value("vdwstyle", false).toBool() ? VDW_ON : VDW_OFF;
+    autobond    = settings.value("autobond", false).toBool();
+    bondcutoff  = settings.value("bondcutoff", 1.6).toDouble();
+    showbox     = settings.value("box", true).toBool();
+    showaxes    = settings.value("axes", false).toBool();
+    usessao     = settings.value("ssao", false).toBool();
+    antialias   = settings.value("antialias", false).toBool();
     xcenter = ycenter = zcenter = 0.5;
+    settings.endGroup();
+
+    auto pix    = QPixmap(":/icons/emblem-photos.png");
     auto bsize = QFontMetrics(QApplication::font()).size(Qt::TextSingleLine, "Height:  200");
 
     auto *renderstatus = new QLabel(QString());
@@ -179,22 +196,22 @@ ImageViewer::ImageViewer(const QString &fileName, LammpsWrapper *_lammps, QWidge
     asize->setToolTip("Set Atom size");
     asize->setEnabled(false);
     asize->hide();
-    settings.beginGroup("snapshot");
+
     auto *xval = new QSpinBox;
     xval->setRange(100, 10000);
     xval->setStepType(QAbstractSpinBox::AdaptiveDecimalStepType);
-    xval->setValue(settings.value("xsize", "600").toInt());
+    xval->setValue(xsize);
     xval->setObjectName("xsize");
     xval->setToolTip("Set rendered image width");
     xval->setMinimumSize(bsize);
     auto *yval = new QSpinBox;
     yval->setRange(100, 10000);
     yval->setStepType(QAbstractSpinBox::AdaptiveDecimalStepType);
-    yval->setValue(settings.value("ysize", "600").toInt());
+    yval->setValue(ysize);
     yval->setObjectName("ysize");
     yval->setToolTip("Set rendered image height");
     yval->setMinimumSize(bsize);
-    settings.endGroup();
+
     connect(asize, &QLineEdit::editingFinished, this, &ImageViewer::set_atom_size);
     connect(xval, &QAbstractSpinBox::editingFinished, this, &ImageViewer::edit_size);
     connect(yval, &QAbstractSpinBox::editingFinished, this, &ImageViewer::edit_size);
@@ -351,8 +368,8 @@ ImageViewer::ImageViewer(const QString &fileName, LammpsWrapper *_lammps, QWidge
     // layout has not yet be established, so we need to fix up some pushbutton
     // properties directly since lookup in reset_view() will have failed
     dobox->setChecked(showbox);
-    doshiny->setChecked(shinyfactor > 0.4);
-    dovdw->setChecked(vdwfactor > 1.0);
+    doshiny->setChecked(shinyfactor > SHINY_CUT);
+    dovdw->setChecked(vdwfactor > VDW_CUT);
     dovdw->setEnabled(useelements || usediameter || usesigma);
     dobond->setChecked(autobond);
     doaxes->setChecked(showaxes);
@@ -376,8 +393,8 @@ void ImageViewer::reset_view()
     zoom        = settings.value("zoom", 1.0).toDouble();
     hrot        = settings.value("hrot", 60).toInt();
     vrot        = settings.value("vrot", 30).toInt();
-    shinyfactor = settings.value("shinystyle", true).toBool() ? 0.6 : 0.2;
-    vdwfactor   = settings.value("vdwstyle", false).toBool() ? 1.6 : 0.5;
+    shinyfactor = settings.value("shinystyle", true).toBool() ? SHINY_ON : SHINY_OFF;
+    vdwfactor   = settings.value("vdwstyle", false).toBool() ? VDW_ON : VDW_OFF;
     autobond    = settings.value("autobond", false).toBool();
     bondcutoff  = settings.value("bondcutoff", 1.6).toDouble();
     showbox     = settings.value("box", true).toBool();
@@ -399,9 +416,9 @@ void ImageViewer::reset_view()
     button = findChild<QPushButton *>("antialias");
     if (button) button->setChecked(antialias);
     button = findChild<QPushButton *>("shiny");
-    if (button) button->setChecked(shinyfactor > 0.4);
+    if (button) button->setChecked(shinyfactor > SHINY_CUT);
     button = findChild<QPushButton *>("vdw");
-    if (button) button->setChecked(vdwfactor > 1.0);
+    if (button) button->setChecked(vdwfactor > VDW_CUT);
     button = findChild<QPushButton *>("autobond");
     if (button) button->setChecked(autobond);
     auto *cutoff = findChild<QLineEdit *>("bondcut");
@@ -453,9 +470,9 @@ void ImageViewer::toggle_shiny()
 {
     auto *button = qobject_cast<QPushButton *>(sender());
     if (shinyfactor > 0.4)
-        shinyfactor = 0.2;
+        shinyfactor = SHINY_OFF;
     else
-        shinyfactor = 0.6;
+        shinyfactor = SHINY_ON;
     button->setChecked(shinyfactor > 0.4);
     createImage();
 }
@@ -463,13 +480,15 @@ void ImageViewer::toggle_shiny()
 void ImageViewer::toggle_vdw()
 {
     auto *button = qobject_cast<QPushButton *>(sender());
-    if (vdwfactor > 1.0)
-        vdwfactor = 0.5;
+    bool do_vdw  = vdwfactor > VDW_CUT;
+
+    if (do_vdw)
+        vdwfactor = VDW_OFF;
     else
-        vdwfactor = 1.6;
+        vdwfactor = VDW_ON;
 
     // when enabling VDW rendering, we must turn off autobond
-    if (vdwfactor > 1.0) {
+    if (do_vdw) {
         autobond   = false;
         auto *bond = findChild<QPushButton *>("autobond");
         if (bond) bond->setChecked(false);
@@ -477,7 +496,7 @@ void ImageViewer::toggle_vdw()
         if (cutoff) cutoff->setEnabled(false);
     }
 
-    button->setChecked(vdwfactor > 1.0);
+    button->setChecked(do_vdw);
     createImage();
 }
 
@@ -491,7 +510,7 @@ void ImageViewer::toggle_bond()
 
     // when enabling autobond, we must turn off VDW
     if (autobond) {
-        vdwfactor = 0.5;
+        vdwfactor = VDW_OFF;
         auto *vdw = findChild<QPushButton *>("vdw");
         if (vdw) vdw->setChecked(false);
     }
@@ -760,8 +779,9 @@ void ImageViewer::createImage()
     else
         dumpcmd += blank + settings.value("color", "type").toString();
 
+    bool do_vdw = vdwfactor > VDW_CUT;
     // diameter
-    if (usediameter && (vdwfactor > 1.0))
+    if (usediameter && do_vdw)
         dumpcmd += blank + "diameter";
     else
         dumpcmd += blank + settings.value("diameter", "type").toString();
@@ -770,7 +790,7 @@ void ImageViewer::createImage()
     dumpcmd += QString(" shiny %1 ").arg(shinyfactor);
     dumpcmd += QString(" fsaa %1").arg(antialias ? "yes" : "no");
     if (nbondtypes > 0) {
-        if (vdwfactor > 1.0)
+        if (do_vdw)
             dumpcmd += " bond none none ";
         else
             dumpcmd += " bond atom 0.5 ";
