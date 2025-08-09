@@ -170,7 +170,7 @@ DumpImage::DumpImage(LAMMPS *lmp, int narg, char **arg) :
       bcolor = ATOM;
       bondcutoff = utils::numeric(FLERR, arg[iarg+1],false, lmp);
       if (bondcutoff <= 0.0)
-        error->all(FLERR, iarg + 2,"Illegal dump image autobond cutoff value {}", bondcutoff);
+        error->all(FLERR, iarg + 1,"Illegal dump image autobond cutoff value {}", bondcutoff);
       bdiam = NUMERIC;
       bdiamvalue = utils::numeric(FLERR,arg[iarg+2],false,lmp);
       if (bdiamvalue <= 0.0)
