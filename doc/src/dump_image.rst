@@ -353,14 +353,19 @@ the input script defines, e.g. Angstroms.
 
 ----------
 
-The *autobond* keyword allows to you to draw bonds for systems where
-bonds are implicit, e.g. for potentials like :doc:`AIREBO <pair_airebo>`
-or :doc:`ReaxFF <pair_reaxff>`.  The first argument is the bond cutoff,
-i.e. bonds are drawn for pairs of atoms that are closer than this cutoff;
-the second argument is the bond diameter.  The implicit bonds are found
-by searching the pair-wise neighbor list for pairs of atoms that are
-closer than the bond cutoff.  The color of the bond is derived from the
-color of the atoms forming the implicit bond.
+The *autobond* keyword enables drawing bonds for systems where bonds are
+implicit, e.g. for potentials like :doc:`AIREBO <pair_airebo>` or
+:doc:`ReaxFF <pair_reaxff>`.  The first argument is the bond cutoff,
+i.e. bonds are drawn for pairs of atoms that are closer than this
+cutoff; the second argument is the bond diameter.  The implicit bonds
+are found by searching the pair-wise neighbor list for pairs of atoms
+that are closer than the bond cutoff.  The color of the bond is derived
+from the color of the atoms forming the implicit bond.  For :doc:`unit
+styles metal and real <units>` an additional condition is applied: if
+the mass of both atoms of a pair within the bond cutoff is lower than 3
+atomic mass units, a bond is **not** drawn; this prohibits displaying
+unwanted hydrogen-hydrogen bonds for alkyl or alcohol groups or for
+water with typical cutoffs suitable for displaying covalent bonds.
 
 ----------
 

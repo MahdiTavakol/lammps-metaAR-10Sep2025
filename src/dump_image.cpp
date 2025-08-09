@@ -1336,6 +1336,8 @@ void DumpImage::create_image()
       comm->forward_comm(this);
 
       double **x = atom->x;
+      double *mass = atom->mass;
+      double *rmass = atom->rmass;
       tagint *tag = atom->tag;
       int *type = atom->type;
       int *jlist;
@@ -1345,6 +1347,11 @@ void DumpImage::create_image()
       double xtmp, ytmp, ztmp, delx, dely, delz, rsq;
       double cutsq = bondcutoff * bondcutoff;
       int newton_pair = force->newton_pair;
+      bool checkmass = false;
+
+      // check for element by mass only for units "real" or "metal"
+      if ((strcmp(update->unit_style, "real") == 0) || (strcmp(update->unit_style, "metal") == 0))
+        checkmass = true;
 
       for (i = 0; i < nchoose; i++) {
         atom1 = clist[i];
@@ -1359,6 +1366,15 @@ void DumpImage::create_image()
           atom2 = jlist[jj] & NEIGHMASK;
           if (!chooseghost[atom2]) continue;
           if ((newton_pair == 0) && (tag[atom1] > tag[atom2])) continue;
+          // skip hydrogen-hydrogen bonds for units real or metal based on their mass
+          // this is primarily for water and alkyl groups
+          if (checkmass) {
+            if (rmass) {
+              if ((rmass[atom1] < 3.0) && (rmass[atom2] < 3.0)) continue;
+            } else {
+              if ((mass[type[atom1]] < 3.0) && (mass[type[atom2]] < 3.0)) continue;
+            }
+          }
           delx = x[atom2][0] - xtmp;
           dely = x[atom2][1] - ytmp;
           delz = x[atom2][2] - ztmp;
