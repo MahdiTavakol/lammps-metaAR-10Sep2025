@@ -248,7 +248,7 @@ ImageViewer::ImageViewer(const QString &fileName, LammpsWrapper *_lammps, QWidge
     bondcut->setObjectName("bondcut");
     bondcut->setToolTip("Set dynamic bond cutoff");
     QFontMetrics metrics(bondcut->fontMetrics());
-    bondcut->setFixedSize(metrics.averageCharWidth() * 6, 24); // TODO: determine height
+    bondcut->setFixedSize(metrics.averageCharWidth() * 6, metrics.height() + 4);
     bondcut->setEnabled(false);
     auto *dobox = new QPushButton(QIcon(":/icons/system-box.png"), "");
     dobox->setCheckable(true);
