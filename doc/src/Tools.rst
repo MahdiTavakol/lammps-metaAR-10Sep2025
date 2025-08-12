@@ -15,7 +15,7 @@ Sandia which provides tools for doing setup, analysis, plotting, and
 visualization for LAMMPS simulations.
 
 .. _lws: https://www.lammps.org
-.. _pizza: https://lammps.github.io/pizza
+.. _pizza: https://lammps.github.io/pizza/
 .. _python: https://www.python.org
 
 Additional tools included in the LAMMPS distribution are described on
@@ -482,7 +482,7 @@ a :doc:`molecule command file <molecule>` you would then run for example:
    check-jsonschema --schemafile molecule-schema.json tip3p.json
 
 The latest schema files are also maintained and available for download
-at https://download.lammps.org/json .  This enables validation of JSON
+at https://download.lammps.org/json/ .  This enables validation of JSON
 files even if the LAMMPS sources are not locally available. Example:
 
 .. code-block:: sh
@@ -623,7 +623,7 @@ Pre-compiled executables
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 Pre-compiled LAMMPS executable packages that include the GUI are
-currently available from https://download.lammps.org/static or
+currently available from https://download.lammps.org/static/ or
 https://github.com/lammps/lammps/releases.  For Windows, you need to
 download and then run the application installer.  For macOS you download
 and mount the disk image and then drag the application bundle to the
