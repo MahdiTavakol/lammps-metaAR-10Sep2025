@@ -40,18 +40,150 @@
 #include "output.h"
 #include "region.h"
 #include "region_block.h"
+#include "region_sphere.h"
 #include "thermo.h"
 #include "tokenizer.h"
 #include "update.h"
 #include "variable.h"
 
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstring>
 
+// helper functions for generating triangle meshes
+
+namespace {
+using vec3 = std::array<double, 3>;
+using triangle = std::array<vec3, 3>;
+
+vec3 vecadd(const vec3 &a, const vec3 &b)
+{
+  vec3 sum(a);
+  sum[0] += b[0];
+  sum[1] += b[1];
+  sum[2] += b[2];
+  return sum;
+}
+
+vec3 vecnorm(const vec3 &a)
+{
+  vec3 norm(a);
+  const double val = a[0] * a[0] + a[1] * a[1] + a[2] * a[2];
+  double scale = 1.0;
+  if (val > 0.0) scale = 1.0 / sqrt(val);
+  norm[0] *= scale;
+  norm[1] *= scale;
+  norm[2] *= scale;
+  return norm;
+}
+
+double radscale(const double *radius, const vec3 &pos)
+{
+  return sqrt(1.0 /
+              (pos[0] / radius[0] * pos[0] / radius[0] + pos[1] / radius[1] * pos[1] / radius[1] +
+               pos[2] / radius[2] * pos[2] / radius[2]));
+}
+
+void ellipsoid2wireframe(LAMMPS_NS::Image *img, int level, const double *color, double diameter,
+                         const double *center, const double *radius)
+{
+  // offset
+  vec3 offs = {center[0], center[1], center[2]};
+
+  // define edges of an octahedron
+  vec3 pos1 = {-1.0, 0.0, 0.0};
+  vec3 pos2 = {1.0, 0.0, 0.0};
+  vec3 pos3 = {0.0, -1.0, 0.0};
+  vec3 pos4 = {0.0, 1.0, 0.0};
+  vec3 pos5 = {0.0, 0.0, -1.0};
+  vec3 pos6 = {0.0, 0.0, 1.0};
+
+  // define triangle mesh
+  std::vector<triangle> trilist1;
+  trilist1.emplace_back(triangle{{pos1, pos4, pos5}});
+  trilist1.emplace_back(triangle{{pos5, pos4, pos2}});
+  trilist1.emplace_back(triangle{{pos2, pos4, pos6}});
+  trilist1.emplace_back(triangle{{pos6, pos4, pos1}});
+  trilist1.emplace_back(triangle{{pos5, pos3, pos1}});
+  trilist1.emplace_back(triangle{{pos2, pos3, pos5}});
+  trilist1.emplace_back(triangle{{pos6, pos3, pos2}});
+  trilist1.emplace_back(triangle{{pos1, pos3, pos6}});
+
+  if (level <= 1) {
+    for (auto &tri : trilist1) {
+      // scale and displace
+      for (int i = 0; i < 3; ++i) {
+        auto scale = radscale(radius, tri[i]);
+        tri[i][0] = tri[i][0] * scale + center[0];
+        tri[i][1] = tri[i][1] * scale + center[1];
+        tri[i][2] = tri[i][2] * scale + center[2];
+      }
+      img->draw_cylinder(tri[0].data(), tri[1].data(), color, diameter, 3);
+      img->draw_cylinder(tri[0].data(), tri[2].data(), color, diameter, 3);
+      img->draw_cylinder(tri[1].data(), tri[2].data(), color, diameter, 3);
+    }
+  }
+
+  // refine the list of triangles
+  std::vector<triangle> trilist2;
+  if (level >= 2) {
+    for (const auto &tri : trilist1) {
+      vec3 posa = vecnorm(vecadd(tri[0], tri[2]));
+      vec3 posb = vecnorm(vecadd(tri[0], tri[1]));
+      vec3 posc = vecnorm(vecadd(tri[1], tri[2]));
+      trilist2.emplace_back(triangle{{tri[0], posb, posa}});
+      trilist2.emplace_back(triangle{{posb, tri[1], posc}});
+      trilist2.emplace_back(triangle{{posa, posb, posc}});
+      trilist2.emplace_back(triangle{{posa, posc, tri[2]}});
+    }
+
+    if (level == 2) {
+      for (auto tri : trilist2) {
+        for (int i = 0; i < 3; ++i) {
+          auto scale = radscale(radius, tri[i]);
+          tri[i][0] = tri[i][0] * scale + center[0];
+          tri[i][1] = tri[i][1] * scale + center[1];
+          tri[i][2] = tri[i][2] * scale + center[2];
+        }
+        img->draw_cylinder(tri[0].data(), tri[1].data(), color, diameter, 3);
+        img->draw_cylinder(tri[0].data(), tri[2].data(), color, diameter, 3);
+        img->draw_cylinder(tri[1].data(), tri[2].data(), color, diameter, 3);
+      }
+    }
+  }
+
+  // refine the list of triangles a second time
+  std::vector<triangle> trilist3;
+  if (level == 3) {
+    for (const auto &tri : trilist2) {
+      vec3 posa = vecnorm(vecadd(tri[0], tri[2]));
+      vec3 posb = vecnorm(vecadd(tri[0], tri[1]));
+      vec3 posc = vecnorm(vecadd(tri[1], tri[2]));
+      trilist3.emplace_back(triangle{{tri[0], posb, posa}});
+      trilist3.emplace_back(triangle{{posb, tri[1], posc}});
+      trilist3.emplace_back(triangle{{posa, posb, posc}});
+      trilist3.emplace_back(triangle{{posa, posc, tri[2]}});
+    }
+
+    for (auto tri : trilist3) {
+      for (int i = 0; i < 3; ++i) {
+        auto scale = radscale(radius, tri[i]);
+        tri[i][0] = tri[i][0] * scale + center[0];
+        tri[i][1] = tri[i][1] * scale + center[1];
+        tri[i][2] = tri[i][2] * scale + center[2];
+      }
+      img->draw_cylinder(tri[0].data(), tri[1].data(), color, diameter, 3);
+      img->draw_cylinder(tri[0].data(), tri[2].data(), color, diameter, 3);
+      img->draw_cylinder(tri[1].data(), tri[2].data(), color, diameter, 3);
+    }
+  }
+}
+}    // namespace
+
 namespace LAMMPS_NS {
 class RegionInfo {
-public:
+ public:
   RegionInfo() = delete;
   RegionInfo(const std::string &_id, Region *_ptr, double *_color, int _style,
              double _diameter = 0.5) :
@@ -1353,7 +1485,6 @@ void DumpImage::create_image()
   // render regions, if supported
 
   for (const auto &reg : regions) {
-    utils::print(stderr, "drawing region {}\n", reg->id);
 
     // check if region has changed or went away
     auto *ptr = domain->get_region_by_id(reg->id);
@@ -1385,16 +1516,17 @@ void DumpImage::create_image()
       // inconsistent style. should not happen.
       if (!myreg) continue;
 
+      double block[8][3];
+      block[0][0] = myreg->xlo + dx; block[0][1] = myreg->ylo + dy; block[0][2] = myreg->zlo + dz;
+      block[1][0] = myreg->xlo + dx; block[1][1] = myreg->ylo + dy; block[1][2] = myreg->zhi + dz;
+      block[2][0] = myreg->xlo + dx; block[2][1] = myreg->yhi + dy; block[2][2] = myreg->zhi + dz;
+      block[3][0] = myreg->xlo + dx; block[3][1] = myreg->yhi + dy; block[3][2] = myreg->zlo + dz;
+      block[4][0] = myreg->xhi + dx; block[4][1] = myreg->ylo + dy; block[4][2] = myreg->zlo + dz;
+      block[5][0] = myreg->xhi + dx; block[5][1] = myreg->ylo + dy; block[5][2] = myreg->zhi + dz;
+      block[6][0] = myreg->xhi + dx; block[6][1] = myreg->yhi + dy; block[6][2] = myreg->zhi + dz;
+      block[7][0] = myreg->xhi + dx; block[7][1] = myreg->yhi + dy; block[7][2] = myreg->zlo + dz;
+
       if (reg->style == FRAME) {
-        double block[8][3];
-        block[0][0] = myreg->xlo + dx; block[0][1] = myreg->ylo + dy; block[0][2] = myreg->zlo + dz;
-        block[1][0] = myreg->xlo + dx; block[1][1] = myreg->ylo + dy; block[1][2] = myreg->zhi + dz;
-        block[2][0] = myreg->xlo + dx; block[2][1] = myreg->yhi + dy; block[2][2] = myreg->zhi + dz;
-        block[3][0] = myreg->xlo + dx; block[3][1] = myreg->yhi + dy; block[3][2] = myreg->zlo + dz;
-        block[4][0] = myreg->xhi + dx; block[4][1] = myreg->ylo + dy; block[4][2] = myreg->zlo + dz;
-        block[5][0] = myreg->xhi + dx; block[5][1] = myreg->ylo + dy; block[5][2] = myreg->zhi + dz;
-        block[6][0] = myreg->xhi + dx; block[6][1] = myreg->yhi + dy; block[6][2] = myreg->zhi + dz;
-        block[7][0] = myreg->xhi + dx; block[7][1] = myreg->yhi + dy; block[7][2] = myreg->zlo + dz;
         image->draw_cylinder(block[0],block[1],reg->color,reg->diameter,3);
         image->draw_cylinder(block[1],block[2],reg->color,reg->diameter,3);
         image->draw_cylinder(block[0],block[3],reg->color,reg->diameter,3);
@@ -1408,6 +1540,45 @@ void DumpImage::create_image()
         image->draw_cylinder(block[4],block[7],reg->color,reg->diameter,3);
         image->draw_cylinder(block[6],block[7],reg->color,reg->diameter,3);
       } else if (reg->style == FILLED) {
+        if (!myreg->open_faces[0]) {
+          image->draw_triangle(block[0], block[1], block[2], reg->color);
+          image->draw_triangle(block[2], block[3], block[0], reg->color);
+        }
+        if (!myreg->open_faces[1]) {
+          image->draw_triangle(block[4], block[5], block[6], reg->color);
+          image->draw_triangle(block[6], block[7], block[4], reg->color);
+        }
+        if (!myreg->open_faces[2]) {
+          image->draw_triangle(block[0], block[4], block[7], reg->color);
+          image->draw_triangle(block[7], block[3], block[0], reg->color);
+        }
+        if (!myreg->open_faces[3]) {
+          image->draw_triangle(block[1], block[2], block[6], reg->color);
+          image->draw_triangle(block[6], block[5], block[1], reg->color);
+        }
+        if (!myreg->open_faces[4]) {
+          image->draw_triangle(block[0], block[1], block[5], reg->color);
+          image->draw_triangle(block[5], block[4], block[0], reg->color);
+        }
+        if (!myreg->open_faces[5]) {
+          image->draw_triangle(block[3], block[2], block[6], reg->color);
+          image->draw_triangle(block[6], block[7], block[3], reg->color);
+        }
+      }
+    } else if (regstyle == "sphere") {
+      auto *myreg = dynamic_cast<RegSphere *>(reg->ptr);
+      // inconsistent style. should not happen.
+      if (!myreg) continue;
+
+      double center[3];
+      center[0] = myreg->xc + dx;
+      center[1] = myreg->yc + dy;
+      center[2] = myreg->zc + dz;
+      if (reg->style == FRAME) {
+        double radius[3] = {myreg->radius,myreg->radius,myreg->radius};
+        ellipsoid2wireframe(image, 3, reg->color, reg->diameter, center, radius);
+      } else if (reg->style == FILLED) {
+        image->draw_sphere(center, reg->color, 2.0 * myreg->radius);
       }
     } else {
       if (comm->me == 0)
