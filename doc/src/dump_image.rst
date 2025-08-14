@@ -24,7 +24,7 @@ Syntax
 * color = atom attribute that determines color of each atom
 * diameter = atom attribute that determines size of each atom
 * zero or more keyword/value pairs may be appended
-* keyword = *atom* or *adiam* or *bond* or *grid* or *line* or *tri* or *body* or *fix* or *size* or *view* or *center* or *up* or *zoom* or *box* or *axes* or *subbox* or *shiny* or *fsaa* or *ssao*
+* keyword = *atom* or *adiam* or *bond* or *grid* or *line* or *tri* or *body* or *fix* or *size* or *view* or *center* or *up* or *zoom* or *box* or *axes* or *region* or *subbox* or *shiny* or *fsaa* or *ssao*
 
   .. parsed-literal::
 
@@ -80,6 +80,13 @@ Syntax
          axes = *yes* or *no* = do or do not draw xyz axes lines next to simulation box
          length = length of axes lines as fraction of respective box lengths
          diam = diameter of axes lines as fraction of shortest box length
+       *region* values = region-ID color drawstyle [diameter (optional)]
+         region-ID = ID of the region to render
+         color = color name for region graphics
+         drawstyle = *filled* or *frame*
+           *filled* = render region as a filled object, with optional open faces
+           *frame* = render region as a wireframe (like box or subbox)
+         diameter = diameter of wireframe (only for drawstyle *frame*)
        *subbox* values = lines diam = draw outline of processor subdomains
          lines = *yes* or *no* = do or do not draw subdomain lines
          diam = diameter of subdomain lines as fraction of shortest box length
@@ -499,6 +506,16 @@ the mapping of types to colors is as follows:
 
 and repeats itself for types > 6.  There is not yet an option to
 change this via the dump_modify command.
+
+----------
+
+The *region* keyword can be used to create a graphical representation
+of a :doc:`region <region>`.  This can be helpful in debugging the
+location and extent of regions, especially when those have parameters
+controlled by variables.  Only "primitive" regions are supported (not
+unions or intersections).  The keyword may be used multiple times.
+Additional parameters like color, draw style (*filled* or *frame*)
+and the diameter of the frame "sticks" need to be provided.
 
 ----------
 
