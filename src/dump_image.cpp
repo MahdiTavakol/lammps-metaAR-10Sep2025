@@ -11,7 +11,6 @@
 
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
-// clang-format on
 
 #include "dump_image.h"
 
@@ -311,8 +310,6 @@ enum { STATIC, DYNAMIC };
 enum { NO = 0, YES = 1 };
 enum { FILLED, FRAME, POINTS };
 
-// clang-format off
-
 /* ---------------------------------------------------------------------- */
 
 DumpImage::DumpImage(LAMMPS *lmp, int narg, char **arg) :
@@ -466,7 +463,7 @@ DumpImage::DumpImage(LAMMPS *lmp, int narg, char **arg) :
       if (iarg+3 > narg) utils::missing_cmd_args(FLERR,"dump image line", error);
       lineflag = YES;
       if (strcmp(arg[iarg+1],"type") == 0) lcolor = TYPE;
-      else error->all(FLERR,"Illegal dump image command");
+      else error->all(FLERR, iarg+1, "Dump image line only supports color by type");
       ldiam = NUMERIC;
       ldiamvalue = utils::numeric(FLERR,arg[iarg+2],false,lmp);
       iarg += 3;
@@ -475,7 +472,7 @@ DumpImage::DumpImage(LAMMPS *lmp, int narg, char **arg) :
       if (iarg+4 > narg) utils::missing_cmd_args(FLERR,"dump image tri", error);
       triflag = YES;
       if (strcmp(arg[iarg+1],"type") == 0) tcolor = TYPE;
-      else error->all(FLERR,"Illegal dump image command");
+      else error->all(FLERR, iarg+1, "Dump image tri only supports color by type");
       tstyle = utils::inumeric(FLERR,arg[iarg+2],false,lmp);
       tdiamvalue = utils::numeric(FLERR,arg[iarg+3],false,lmp);
       iarg += 4;
@@ -484,7 +481,7 @@ DumpImage::DumpImage(LAMMPS *lmp, int narg, char **arg) :
       if (iarg+4 > narg) utils::missing_cmd_args(FLERR,"dump image body", error);
       bodyflag = YES;
       if (strcmp(arg[iarg+1],"type") == 0) bodycolor = TYPE;
-      else error->all(FLERR,"Illegal dump image command");
+      else error->all(FLERR, iarg+1, "Dump image body only support color by type");
       bodyflag1 = utils::numeric(FLERR,arg[iarg+2],false,lmp);
       bodyflag2 = utils::numeric(FLERR,arg[iarg+3],false,lmp);
       iarg += 4;
@@ -494,7 +491,7 @@ DumpImage::DumpImage(LAMMPS *lmp, int narg, char **arg) :
       fixflag = YES;
       fixID = arg[iarg+1];
       if (strcmp(arg[iarg+2],"type") == 0) fixcolor = TYPE;
-      else error->all(FLERR,"Illegal dump image command");
+      else error->all(FLERR, iarg+2, "Dump image fix only supports color by type");
       fixflag1 = utils::numeric(FLERR,arg[iarg+3],false,lmp);
       fixflag2 = utils::numeric(FLERR,arg[iarg+4],false,lmp);
       iarg += 5;
@@ -517,14 +514,19 @@ DumpImage::DumpImage(LAMMPS *lmp, int narg, char **arg) :
       if (drawstyle == FRAME) {
         if (iarg+5 > narg) utils::missing_cmd_args(FLERR,"dump image region", error);
         framediam = utils::numeric(FLERR, arg[iarg+4], false, lmp);
+        if (framediam <= 0.0)
+          error->all(FLERR, iarg+4, "Dump image region frame diameter must be > 0.0");
         ++iarg;
       } else if (drawstyle == POINTS) {
         if (iarg+6 > narg) utils::missing_cmd_args(FLERR,"dump image region", error);
         npoints = utils::inumeric(FLERR, arg[iarg+4], false, lmp);
+        if (npoints < 1)
+          error->all(FLERR, iarg+4, "Dump image region number of points must be > 0");
         framediam = utils::numeric(FLERR, arg[iarg+5], false, lmp);
+        if (framediam <= 0.0)
+          error->all(FLERR, iarg+5, "Dump image region point diameter must be > 0.0");
         iarg += 2;
       }
-
       iarg += 4;
       regions.emplace_back(new RegionInfo(regptr->id, regptr, regcolor, drawstyle,
                                           framediam, npoints));
@@ -533,7 +535,8 @@ DumpImage::DumpImage(LAMMPS *lmp, int narg, char **arg) :
       if (iarg+3 > narg) utils::missing_cmd_args(FLERR,"dump image size", error);
       int width = utils::inumeric(FLERR,arg[iarg+1],false,lmp);
       int height = utils::inumeric(FLERR,arg[iarg+2],false,lmp);
-      if (width <= 0 || height <= 0) error->all(FLERR,"Illegal dump image command");
+      if (width <= 0 || height <= 0)
+        error->all(FLERR, Error::NOPOINTER, "Illegal dump image dimensions");
       if (image->fsaa) {
         image->width = width*2;
         image->height = height*2;
@@ -551,7 +554,7 @@ DumpImage::DumpImage(LAMMPS *lmp, int narg, char **arg) :
       } else {
         const double theta = utils::numeric(FLERR,arg[iarg+1],false,lmp);
         if (theta < 0.0 || theta > 180.0)
-          error->all(FLERR,"Invalid dump image theta value");
+          error->all(FLERR, iarg+1, "Invalid dump image theta value");
         image->theta = DEG2RAD * theta;
       }
       if (utils::strmatch(arg[iarg+2],"^v_")) {
