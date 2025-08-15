@@ -1598,7 +1598,7 @@ void DumpImage::create_image()
 
     // check if region has changed or went away
     auto *ptr = domain->get_region_by_id(reg->id);
-    if (!ptr) error->all(FLERR, "Dump image region {} does not exist");
+    if (!ptr) error->all(FLERR, "Dump image region {} does not exist", reg->id);
     reg->ptr = ptr;
 
     if (reg->ptr->rotateflag) {
