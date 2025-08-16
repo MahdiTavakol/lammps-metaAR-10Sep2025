@@ -49,6 +49,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <unordered_set>
 
 // clang-format off
 /* periodic table of elements for translation of ordinal to atom type */
@@ -144,7 +145,26 @@ constexpr double SHINY_ON     = 0.6;
 constexpr double SHINY_OFF    = 0.2;
 constexpr double SHINY_CUT    = 0.4;
 constexpr double MAX_BOND_CUT = 99.0;
+constexpr int DEFAULT_BUFLEN  = 1024;
+enum { FRAME, FILLED, POINTS };
+
 } // namespace
+
+class RegionInfo {
+public:
+    RegionInfo() = delete;
+    RegionInfo(bool _enabled, int _style, const std::string &_color, double _diameter,
+               int _npoints) :
+        enabled(_enabled), style(_style), color(_color), diameter(_diameter), npoints(_npoints)
+    {
+    }
+
+    bool enabled;
+    int style;
+    std::string color;
+    double diameter;
+    int npoints;
+};
 
 ImageViewer::ImageViewer(const QString &fileName, LammpsWrapper *_lammps, QWidget *parent) :
     QDialog(parent), menuBar(new QMenuBar), imageLabel(new QLabel), scrollArea(new QScrollArea),
@@ -274,6 +294,10 @@ ImageViewer::ImageViewer(const QString &fileName, LammpsWrapper *_lammps, QWidge
     recenter->setToolTip("Recenter on group");
     auto *reset = new QPushButton(QIcon(":/icons/gtk-zoom-fit.png"), "");
     reset->setToolTip("Reset view to defaults");
+    auto *regviz = new QPushButton("Regions");
+    regviz->setToolTip("Open dialog for visualizing regions");
+    regviz->setObjectName("regions");
+    regviz->setEnabled(false);
 
     constexpr int BUFLEN = 256;
     char gname[BUFLEN];
@@ -337,6 +361,7 @@ ImageViewer::ImageViewer(const QString &fileName, LammpsWrapper *_lammps, QWidge
     buttonLayout->addWidget(rotdown);
     buttonLayout->addWidget(recenter);
     buttonLayout->addWidget(reset);
+    buttonLayout->addWidget(regviz);
     buttonLayout->addStretch(1);
 
     connect(dossao, &QPushButton::released, this, &ImageViewer::toggle_ssao);
@@ -355,6 +380,7 @@ ImageViewer::ImageViewer(const QString &fileName, LammpsWrapper *_lammps, QWidge
     connect(rotdown, &QPushButton::released, this, &ImageViewer::do_rot_down);
     connect(recenter, &QPushButton::released, this, &ImageViewer::do_recenter);
     connect(reset, &QPushButton::released, this, &ImageViewer::reset_view);
+    connect(regviz, &QPushButton::released, this, &ImageViewer::region_settings);
     connect(combo, SIGNAL(currentIndexChanged(int)), this, SLOT(change_group(int)));
     connect(molbox, SIGNAL(currentIndexChanged(int)), this, SLOT(change_molecule(int)));
 
@@ -382,6 +408,7 @@ ImageViewer::ImageViewer(const QString &fileName, LammpsWrapper *_lammps, QWidge
     scrollArea->setVisible(true);
     updateActions();
     setLayout(mainLayout);
+    update_regions();
 }
 
 void ImageViewer::reset_view()
@@ -644,6 +671,12 @@ void ImageViewer::cmd_to_clipboard()
 #else
     fprintf(stderr, "# customized dump image command:\n%s", dumpcmd.c_str())
 #endif
+}
+
+void ImageViewer::region_settings()
+{
+    update_regions();
+    if (regions.size() == 0) return;
 }
 
 void ImageViewer::change_group(int)
@@ -930,6 +963,38 @@ void ImageViewer::adjustScrollBar(QScrollBar *scrollBar, double factor)
 {
     scrollBar->setValue(
         int((factor * scrollBar->value()) + ((factor - 1) * scrollBar->pageStep() / 2)));
+}
+
+void ImageViewer::update_regions()
+{
+    if (!lammps) return;
+
+    // remove any regions that no longer exist. to avoid inconsistencies while looping
+    // over the regions, we first collect the list of missing id and then apply it.
+    std::unordered_set<std::string> oldkeys;
+    for (const auto &reg : regions) {
+        if (!lammps->has_id("region", reg.first.c_str())) oldkeys.insert(reg.first);
+    }
+    for (const auto &id : oldkeys) {
+        delete regions[id];
+        regions.erase(id);
+    }
+
+    // add any new regions
+    char buffer[DEFAULT_BUFLEN];
+    int nregions = lammps->id_count("region");
+    for (int i = 0; i < nregions; ++i) {
+        if (lammps->id_name("region", i, buffer, DEFAULT_BUFLEN)) {
+            std::string id = buffer;
+            if (regions.count(id) == 0) {
+                auto *reginfo = new RegionInfo(false, FRAME, "white", 0.2, 10000);
+                regions[id]   = reginfo;
+            }
+        }
+    }
+
+    auto *button = findChild<QPushButton *>("regions");
+    if (button) button->setEnabled(regions.size() > 0);
 }
 
 // Local Variables:

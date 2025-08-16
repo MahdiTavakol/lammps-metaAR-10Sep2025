@@ -18,6 +18,7 @@
 #include <QDialog>
 #include <QImage>
 #include <QString>
+#include <map>
 
 class QAction;
 class QMenuBar;
@@ -29,6 +30,7 @@ class QScrollBar;
 class QStatusBar;
 class LammpsWrapper;
 class QComboBox;
+class RegionInfo;
 
 class ImageViewer : public QDialog {
     Q_OBJECT
@@ -68,6 +70,7 @@ private slots:
     void do_rot_down();
     void do_recenter();
     void cmd_to_clipboard();
+    void region_settings();
     void change_group(int);
     void change_molecule(int);
 
@@ -80,6 +83,7 @@ private:
     void saveFile(const QString &fileName);
     void scaleImage(double factor);
     void adjustScrollBar(QScrollBar *scrollBar, double factor);
+    void update_regions();
 
 private:
     QImage image;
@@ -107,6 +111,7 @@ private:
     double zoom, vdwfactor, shinyfactor, bondcutoff;
     double xcenter, ycenter, zcenter;
     bool showbox, showaxes, antialias, usessao, useelements, usediameter, usesigma, autobond;
+    std::map<std::string, RegionInfo *> regions;
 };
 #endif
 
