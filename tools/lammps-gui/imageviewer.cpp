@@ -1002,23 +1002,24 @@ void ImageViewer::createImage()
     if (regions.size() > 0) {
         for (const auto &reg : regions) {
             if (reg.second->enabled) {
-                std::string id = reg.first;
+                QString id(reg.first.c_str());
+                QString color(reg.second->color.c_str());
                 switch (reg.second->style) {
                     case FRAME:
-                        dumpcmd += " region " + id + " " + reg.second->color;
-                        dumpcmd += " frame " + std::to_string(reg.second->diameter);
+                        dumpcmd += " region " + id + blank + color;
+                        dumpcmd += " frame " + QString::number(reg.second->diameter);
                         break;
                     case FILLED:
-                        dumpcmd += " region " + id + " " + reg.second->color + " filled";
+                        dumpcmd += " region " + id + blank + color + " filled";
                         break;
                     case POINTS:
                     default:
-                        dumpcmd += " region " + id + " " + reg.second->color;
-                        dumpcmd += " points " + std::to_string(reg.second->npoints);
-                        dumpcmd += " " + std::to_string(reg.second->diameter);
+                        dumpcmd += " region " + id + blank + color;
+                        dumpcmd += " points " + QString::number(reg.second->npoints);
+                        dumpcmd += blank + QString::number(reg.second->diameter);
                         break;
                 }
-                dumpcmd += " ";
+                dumpcmd += blank;
             }
         }
     }
