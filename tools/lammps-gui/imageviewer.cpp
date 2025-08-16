@@ -141,27 +141,34 @@ int get_pte_from_mass(double mass)
 }
 
 // clang-format off
-QStringList imagecolors = { "aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige",
-    "bisque", "black", "blanchedalmond", "blue", "blueviolet", "brown", "burlywood", "cadetblue",
-    "chartreuse", "chocolate", "coral", "cornflowerblue", "cornsilk", "crimson", "cyan",
-    "darkblue", "darkcyan", "darkgoldenrod", "darkgray", "darkgreen", "darkkhaki", "darkmagenta",
-    "darkolivegreen", "darkorange", "darkorchid", "darkred", "darksalmon", "darkseagreen",
-    "darkslateblue", "darkslategray", "darkturquoise", "darkviolet", "deeppink", "deepskyblue",
-    "dimgray", "dodgerblue", "firebrick", "floralwhite", "forestgreen", "fuchsia", "gainsboro",
-    "ghostwhite", "gold", "goldenrod", "gray", "green", "greenyellow", "honeydew", "hotpink",
-    "indianred", "indigo", "ivory", "khaki", "lavender", "lavenderblush", "lawngreen",
-    "lemonchiffon", "lightblue", "lightcoral", "lightcyan", "lightgoldenrodyellow", "lightgreen",
-    "lightgrey", "lightpink", "lightsalmon", "lightseagreen", "lightskyblue", "lightslategray",
-    "lightsteelblue", "lightyellow", "lime", "limegreen", "linen", "magenta", "maroon",
-    "mediumaquamarine", "mediumblue", "mediumorchid", "mediumpurple", "mediumseagreen",
-    "mediumslateblue", "mediumspringgreen", "mediumturquoise", "mediumvioletred", "midnightblue",
-    "mintcream", "mistyrose", "moccasin", "navajowhite", "navy", "oldlace", "olive", "olivedrab",
-    "orange", "orangered", "orchid", "palegoldenrod", "palegreen", "paleturquoise",
-    "palevioletred", "papayawhip", "peachpuff", "peru", "pink", "plum", "powderblue", "purple",
-    "red", "rosybrown", "royalblue", "saddlebrown", "salmon", "sandybrown", "seagreen", "seashell",
-    "sienna", "silver", "skyblue", "slateblue", "slategray", "snow", "springgreen", "steelblue",
-    "tan", "teal", "thistle", "tomato", "turquoise", "violet", "wheat", "white", "whitesmoke",
-    "yellow", "yellowgreen" };
+QStringList imagecolors = {
+    "aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige", "bisque", "black",
+    "blanchedalmond", "blue", "blueviolet", "brown", "burlywood", "cadetblue", "chartreuse",
+    "chocolate", "coral", "cornflowerblue", "cornsilk", "crimson", "cyan", "darkblue", "darkcyan",
+    "darkgoldenrod", "darkgray", "darkgreen", "darkkhaki", "darkmagenta", "darkolivegreen",
+    "darkorange", "darkorchid", "darkred", "darksalmon", "darkseagreen", "darkslateblue",
+    "darkslategray", "darkturquoise", "darkviolet", "deeppink", "deepskyblue", "dimgray",
+    "dodgerblue", "firebrick", "floralwhite", "forestgreen", "fuchsia", "gainsboro", "ghostwhite",
+    "gold", "goldenrod", "gray", "green", "greenyellow", "honeydew", "hotpink", "indianred",
+    "indigo", "ivory", "khaki", "lavender", "lavenderblush", "lawngreen", "lemonchiffon",
+    "lightblue", "lightcoral", "lightcyan", "lightgoldenrodyellow", "lightgreen", "lightgrey",
+    "lightpink", "lightsalmon", "lightseagreen", "lightskyblue", "lightslategray", "lightsteelblue",
+    "lightyellow", "lime", "limegreen", "linen", "magenta", "maroon", "mediumaquamarine",
+    "mediumblue", "mediumorchid", "mediumpurple", "mediumseagreen", "mediumslateblue",
+    "mediumspringgreen", "mediumturquoise", "mediumvioletred", "midnightblue", "mintcream",
+    "mistyrose", "moccasin", "navajowhite", "navy", "oldlace", "olive", "olivedrab", "orange",
+    "orangered", "orchid", "palegoldenrod", "palegreen", "paleturquoise", "palevioletred",
+    "papayawhip", "peachpuff", "peru", "pink", "plum", "powderblue", "purple", "red", "rosybrown",
+    "royalblue", "saddlebrown", "salmon", "sandybrown", "seagreen", "seashell", "sienna", "silver",
+    "skyblue", "slateblue", "slategray", "snow", "springgreen", "steelblue", "tan", "teal",
+    "thistle", "tomato", "turquoise", "violet", "wheat", "white", "whitesmoke", "yellow",
+    "yellowgreen"
+};
+
+QStringList defaultcolors = {
+    "white", "gray", "magenta", "cyan", "yellow", "blue", "green", "red", "orange", "brown"
+};
+
 // clang-format on
 
 const QString blank(" ");
@@ -718,11 +725,19 @@ void ImageViewer::region_settings()
     regionview.setContentsMargins(5, 5, 5, 5);
     regionview.setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
 
-    auto *title  = new QLabel("Visualize Regions:");
+    auto *title = new QLabel("Visualize Regions:");
+    title->setFrameStyle(QFrame::Panel | QFrame::Raised);
+    title->setLineWidth(1);
+
     auto *layout = new QGridLayout;
-    int idx      = 0;
-    layout->addWidget(title, idx, 0, 1, 6, Qt::AlignHCenter);
-    ++idx;
+    layout->addWidget(title, 0, 0, 1, 6, Qt::AlignHCenter);
+
+    layout->addWidget(new QLabel("Region:"), 1, 0);
+    layout->addWidget(new QLabel("Show:"), 1, 1, Qt::AlignHCenter);
+    layout->addWidget(new QLabel("Style:"), 1, 2, Qt::AlignHCenter);
+    layout->addWidget(new QLabel("Color:"), 1, 3, Qt::AlignHCenter);
+    layout->addWidget(new QLabel("Size:"), 1, 4, Qt::AlignHCenter);
+    layout->addWidget(new QLabel("# Points:"), 1, 5, Qt::AlignHCenter);
 
     auto *colorcompleter = new QCompleter(imagecolors);
     colorcompleter->setCompletionMode(QCompleter::InlineCompletion);
@@ -731,29 +746,35 @@ void ImageViewer::region_settings()
     auto *pointvalidator = new QIntValidator(100, 1000000);
     QFontMetrics metrics(regionview.fontMetrics());
 
+    int idx = 2;
     for (const auto &reg : regions) {
         layout->addWidget(new QLabel(reg.first.c_str()), idx, 0);
-        layout->setObjectName(reg.first.c_str());
-        auto *check = new QCheckBox("enabled");
+        layout->setObjectName(QString(reg.first.c_str()));
+
+        auto *check = new QCheckBox("");
         check->setCheckState(reg.second->enabled ? Qt::Checked : Qt::Unchecked);
-        layout->addWidget(check, idx, 1);
+        layout->addWidget(check, idx, 1, Qt::AlignHCenter);
         auto *style = new QComboBox;
         style->setEditable(false);
-        style->addItem("filled");
         style->addItem("frame");
+        style->addItem("filled");
         style->addItem("points");
+        style->setCurrentIndex(reg.second->style);
         layout->addWidget(style, idx, 2);
         auto *color = new QLineEdit(reg.second->color.c_str());
         color->setCompleter(colorcompleter);
         color->setFixedSize(metrics.averageCharWidth() * 12, metrics.height() + 4);
+        color->setText(reg.second->color.c_str());
         layout->addWidget(color, idx, 3);
         auto *frame = new QLineEdit(QString::number(reg.second->diameter));
         frame->setValidator(framevalidator);
         frame->setFixedSize(metrics.averageCharWidth() * 8, metrics.height() + 4);
+        frame->setText(QString::number(reg.second->diameter));
         layout->addWidget(frame, idx, 4);
         auto *points = new QLineEdit(QString::number(reg.second->npoints));
         points->setValidator(pointvalidator);
         points->setFixedSize(metrics.averageCharWidth() * 10, metrics.height() + 4);
+        points->setText(QString::number(reg.second->npoints));
         layout->addWidget(points, idx, 5);
         ++idx;
     }
@@ -766,8 +787,34 @@ void ImageViewer::region_settings()
     connect(cancel, &QPushButton::released, &regionview, &QDialog::reject);
     connect(apply, &QPushButton::released, &regionview, &QDialog::accept);
     regionview.setLayout(layout);
+
     int rv = regionview.exec();
+
+    // return immediately on cancel
     if (!rv) return;
+
+    // retrieve data from dialog and store in map
+    for (int idx = 2; idx < regions.size() + 2; ++idx) {
+        auto *item            = layout->itemAtPosition(idx, 0);
+        auto *label           = qobject_cast<QLabel *>(item->widget());
+        auto id               = label->text().toStdString();
+        item                  = layout->itemAtPosition(idx, 1);
+        auto *box             = qobject_cast<QCheckBox *>(item->widget());
+        regions[id]->enabled  = (box->checkState() == Qt::Checked);
+        item                  = layout->itemAtPosition(idx, 2);
+        auto *combo           = qobject_cast<QComboBox *>(item->widget());
+        regions[id]->style    = combo->currentIndex();
+        item                  = layout->itemAtPosition(idx, 3);
+        auto *line            = qobject_cast<QLineEdit *>(item->widget());
+        regions[id]->color    = line->text().toStdString();
+        item                  = layout->itemAtPosition(idx, 4);
+        line                  = qobject_cast<QLineEdit *>(item->widget());
+        regions[id]->diameter = line->text().toDouble();
+        item                  = layout->itemAtPosition(idx, 5);
+        line                  = qobject_cast<QLineEdit *>(item->widget());
+        regions[id]->npoints  = line->text().toInt();
+    }
+    createImage();
 }
 
 void ImageViewer::change_group(int)
@@ -956,6 +1003,30 @@ void ImageViewer::createImage()
 
     if (autobond) dumpcmd += blank + "autobond" + blank + QString::number(bondcutoff) + " 0.5";
 
+    if (regions.size() > 0) {
+        for (const auto &reg : regions) {
+            if (reg.second->enabled) {
+                std::string id = reg.first;
+                switch (reg.second->style) {
+                    case FRAME:
+                        dumpcmd += " region " + id + " " + reg.second->color;
+                        dumpcmd += " frame " + std::to_string(reg.second->diameter);
+                        break;
+                    case FILLED:
+                        dumpcmd += " region " + id + " " + reg.second->color + " filled";
+                        break;
+                    case POINTS:
+                    default:
+                        dumpcmd += " region " + id + " " + reg.second->color;
+                        dumpcmd += " points " + std::to_string(reg.second->npoints);
+                        dumpcmd += " " + std::to_string(reg.second->diameter);
+                        break;
+                }
+                dumpcmd += " ";
+            }
+        }
+    }
+
     dumpcmd += QString(" center s %1 %2 %3").arg(xcenter).arg(ycenter).arg(zcenter);
     dumpcmd += " noinit";
     dumpcmd += " modify boxcolor " + settings.value("boxcolor", "yellow").toString();
@@ -1078,8 +1149,9 @@ void ImageViewer::update_regions()
         if (lammps->id_name("region", i, buffer, DEFAULT_BUFLEN)) {
             std::string id = buffer;
             if (regions.count(id) == 0) {
-                auto *reginfo = new RegionInfo(false, FRAME, "white", 0.2, 10000);
-                regions[id]   = reginfo;
+                const auto &color = defaultcolors[i % defaultcolors.size()].toStdString();
+                auto *reginfo     = new RegionInfo(false, FRAME, color, 0.2, 10000);
+                regions[id]       = reginfo;
             }
         }
     }
