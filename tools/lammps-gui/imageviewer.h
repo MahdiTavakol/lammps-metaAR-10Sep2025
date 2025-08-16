@@ -38,7 +38,7 @@ class ImageViewer : public QDialog {
 public:
     explicit ImageViewer(const QString &fileName, LammpsWrapper *_lammps,
                          QWidget *parent = nullptr);
-    ~ImageViewer() override = default;
+    virtual ~ImageViewer();
 
     ImageViewer()                               = delete;
     ImageViewer(const ImageViewer &)            = delete;

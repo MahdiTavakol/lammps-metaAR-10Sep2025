@@ -19,7 +19,9 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
+#include <QCompleter>
 #include <QDir>
 #include <QDoubleValidator>
 #include <QFile>
@@ -44,6 +46,7 @@
 #include <QSettings>
 #include <QSizePolicy>
 #include <QSpinBox>
+#include <QStringList>
 #include <QVBoxLayout>
 #include <QVariant>
 
@@ -136,6 +139,30 @@ int get_pte_from_mass(double mass)
     if ((mass < 61.24) && (mass > 58.8133)) idx = 27;
     return idx;
 }
+
+// clang-format off
+QStringList imagecolors = { "aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige",
+    "bisque", "black", "blanchedalmond", "blue", "blueviolet", "brown", "burlywood", "cadetblue",
+    "chartreuse", "chocolate", "coral", "cornflowerblue", "cornsilk", "crimson", "cyan",
+    "darkblue", "darkcyan", "darkgoldenrod", "darkgray", "darkgreen", "darkkhaki", "darkmagenta",
+    "darkolivegreen", "darkorange", "darkorchid", "darkred", "darksalmon", "darkseagreen",
+    "darkslateblue", "darkslategray", "darkturquoise", "darkviolet", "deeppink", "deepskyblue",
+    "dimgray", "dodgerblue", "firebrick", "floralwhite", "forestgreen", "fuchsia", "gainsboro",
+    "ghostwhite", "gold", "goldenrod", "gray", "green", "greenyellow", "honeydew", "hotpink",
+    "indianred", "indigo", "ivory", "khaki", "lavender", "lavenderblush", "lawngreen",
+    "lemonchiffon", "lightblue", "lightcoral", "lightcyan", "lightgoldenrodyellow", "lightgreen",
+    "lightgrey", "lightpink", "lightsalmon", "lightseagreen", "lightskyblue", "lightslategray",
+    "lightsteelblue", "lightyellow", "lime", "limegreen", "linen", "magenta", "maroon",
+    "mediumaquamarine", "mediumblue", "mediumorchid", "mediumpurple", "mediumseagreen",
+    "mediumslateblue", "mediumspringgreen", "mediumturquoise", "mediumvioletred", "midnightblue",
+    "mintcream", "mistyrose", "moccasin", "navajowhite", "navy", "oldlace", "olive", "olivedrab",
+    "orange", "orangered", "orchid", "palegoldenrod", "palegreen", "paleturquoise",
+    "palevioletred", "papayawhip", "peachpuff", "peru", "pink", "plum", "powderblue", "purple",
+    "red", "rosybrown", "royalblue", "saddlebrown", "salmon", "sandybrown", "seagreen", "seashell",
+    "sienna", "silver", "skyblue", "slateblue", "slategray", "snow", "springgreen", "steelblue",
+    "tan", "teal", "thistle", "tomato", "turquoise", "violet", "wheat", "white", "whitesmoke",
+    "yellow", "yellowgreen" };
+// clang-format on
 
 const QString blank(" ");
 constexpr double VDW_ON       = 1.6;
@@ -411,6 +438,13 @@ ImageViewer::ImageViewer(const QString &fileName, LammpsWrapper *_lammps, QWidge
     update_regions();
 }
 
+ImageViewer::~ImageViewer()
+{
+    delete menuBar;
+    delete imageLabel;
+    delete scrollArea;
+}
+
 void ImageViewer::reset_view()
 {
     QSettings settings;
@@ -677,6 +711,63 @@ void ImageViewer::region_settings()
 {
     update_regions();
     if (regions.size() == 0) return;
+    QDialog regionview;
+    regionview.setWindowTitle(QString("LAMMPS-GUI - Visualize Regions"));
+    regionview.setWindowIcon(QIcon(":/icons/lammps-icon-128x128.png"));
+    regionview.setMinimumSize(100, 50);
+    regionview.setContentsMargins(5, 5, 5, 5);
+    regionview.setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
+
+    auto *title  = new QLabel("Visualize Regions:");
+    auto *layout = new QGridLayout;
+    int idx      = 0;
+    layout->addWidget(title, idx, 0, 1, 6, Qt::AlignHCenter);
+    ++idx;
+
+    auto *colorcompleter = new QCompleter(imagecolors);
+    colorcompleter->setCompletionMode(QCompleter::InlineCompletion);
+    colorcompleter->setModelSorting(QCompleter::CaseInsensitivelySortedModel);
+    auto *framevalidator = new QDoubleValidator(1.0e-10, 1.0e10, 10);
+    auto *pointvalidator = new QIntValidator(100, 1000000);
+    QFontMetrics metrics(regionview.fontMetrics());
+
+    for (const auto &reg : regions) {
+        layout->addWidget(new QLabel(reg.first.c_str()), idx, 0);
+        layout->setObjectName(reg.first.c_str());
+        auto *check = new QCheckBox("enabled");
+        check->setCheckState(reg.second->enabled ? Qt::Checked : Qt::Unchecked);
+        layout->addWidget(check, idx, 1);
+        auto *style = new QComboBox;
+        style->setEditable(false);
+        style->addItem("filled");
+        style->addItem("frame");
+        style->addItem("points");
+        layout->addWidget(style, idx, 2);
+        auto *color = new QLineEdit(reg.second->color.c_str());
+        color->setCompleter(colorcompleter);
+        color->setFixedSize(metrics.averageCharWidth() * 12, metrics.height() + 4);
+        layout->addWidget(color, idx, 3);
+        auto *frame = new QLineEdit(QString::number(reg.second->diameter));
+        frame->setValidator(framevalidator);
+        frame->setFixedSize(metrics.averageCharWidth() * 8, metrics.height() + 4);
+        layout->addWidget(frame, idx, 4);
+        auto *points = new QLineEdit(QString::number(reg.second->npoints));
+        points->setValidator(pointvalidator);
+        points->setFixedSize(metrics.averageCharWidth() * 10, metrics.height() + 4);
+        layout->addWidget(points, idx, 5);
+        ++idx;
+    }
+    auto *cancel = new QPushButton("&Cancel");
+    auto *apply  = new QPushButton("&Apply");
+    cancel->setAutoDefault(false);
+    apply->setAutoDefault(true);
+    layout->addWidget(cancel, idx, 0, 1, 3, Qt::AlignHCenter);
+    layout->addWidget(apply, idx, 3, 1, 3, Qt::AlignHCenter);
+    connect(cancel, &QPushButton::released, &regionview, &QDialog::reject);
+    connect(apply, &QPushButton::released, &regionview, &QDialog::accept);
+    regionview.setLayout(layout);
+    int rv = regionview.exec();
+    if (!rv) return;
 }
 
 void ImageViewer::change_group(int)
