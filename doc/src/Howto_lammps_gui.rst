@@ -18,7 +18,7 @@ display visualizations created with the :doc:`dump image command
 LAMMPS commands and styles, and directly integrates with a collection
 of LAMMPS tutorials (:ref:`Gravelle1 <Gravelle1>`).
 
-This document describes **LAMMPS-GUI version 1.7**.
+This document describes **LAMMPS-GUI version 1.7.1**.
 
 -----
 
@@ -563,19 +563,29 @@ Lennard-Jones type potential, it will extract the *sigma* parameter for
 each atom type and assign atom diameters from those numbers.  For cases
 where atom diameters are not auto-detected, the *Atom size* field can be
 edited and a suitable value set manually. The default value is inferred
-from the x-direction lattice spacing.
+from the x-direction lattice spacing. It is also possible to visualize
+regions and have bonds computed dynamically for potentials, where the
+bonds are determined implicitly (like :doc:`AIREBO <pair_airebo>`.
+Please see the documentation of the :doc:`dump image command
+<dump_image>` for more details on these two features.
 
 If elements cannot be detected the default sequence of colors of the
 :doc:`dump image <dump_image>` command is assigned to the different atom
 types.
 
 .. |gui-image1| image:: JPG/lammps-gui-image.png
-   :width: 48%
+   :width: 24%
 
 .. |gui-image2| image:: JPG/lammps-gui-funnel.png
-   :width: 48%
+   :width: 24%
 
-|gui-image1|  |gui-image2|
+.. |gui-image3| image:: JPG/lammps-gui-regions.png
+   :width: 24%
+
+.. |gui-image4| image:: JPG/lammps-gui-autobond.png
+   :width: 24%
+
+|gui-image1|  |gui-image2|  |gui-image3|  |gui-image4|
 
 The default image size, some default image quality settings, the view
 style and some colors can be changed in the *Preferences* dialog window.
