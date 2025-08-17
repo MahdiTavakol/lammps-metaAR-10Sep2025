@@ -62,6 +62,7 @@
         Fix bugs when using filenames or paths with blanks.
         Support new "dump image autobond" feature in image viewer.
         Support new "dump image region" feature in image viewer.
+        Change color selections for dump image to text fields with completion and validation.
       </description>
     </release>
     <release version="1.7.0" timestamp="1751978344">

@@ -16,12 +16,12 @@
 #include "helpers.h"
 #include "lammpsgui.h"
 #include "lammpswrapper.h"
+#include "qaddon.h"
 #include "ui_lammpsgui.h"
 
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
-#include <QCompleter>
 #include <QCoreApplication>
 #include <QDialogButtonBox>
 #include <QDoubleValidator>
@@ -60,82 +60,6 @@
 #else
 #include <unistd.h>
 #endif
-
-// convenience classes
-namespace {
-class QHline : public QFrame {
-public:
-    QHline(QWidget *parent = nullptr) : QFrame(parent)
-    {
-        setGeometry(QRect(0, 0, 100, 3));
-        setFrameShape(QFrame::HLine);
-        setFrameShadow(QFrame::Sunken);
-    }
-};
-
-class QColorValidator : public QValidator {
-public:
-    QColorValidator(const QStringList &_colors, QWidget *parent = nullptr) :
-        QValidator(parent), colors(_colors)
-    {
-    }
-
-    void fixup(QString &input) const override
-    {
-        // remove leading/trailing whitespace and make lowercase
-        input = input.trimmed();
-        input = input.toLower();
-    }
-
-    QValidator::State validate(QString &input, int &pos) const override
-    {
-        QString match;
-
-        // find if input string is contained in list of colors
-        for (auto color : colors) {
-            if (color.startsWith(input)) {
-                match = color;
-                break;
-            }
-        }
-
-        if (match == input) {
-            return QValidator::Acceptable;
-        } else if (match.size() > 0) {
-            return QValidator::Intermediate;
-        }
-        return QValidator::Invalid;
-    }
-
-private:
-    const QStringList colors;
-};
-
-// clang-format off
-QStringList imagecolors = {
-    "aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige", "bisque", "black",
-    "blanchedalmond", "blue", "blueviolet", "brown", "burlywood", "cadetblue", "chartreuse",
-    "chocolate", "coral", "cornflowerblue", "cornsilk", "crimson", "cyan", "darkblue", "darkcyan",
-    "darkgoldenrod", "darkgray", "darkgreen", "darkkhaki", "darkmagenta", "darkolivegreen",
-    "darkorange", "darkorchid", "darkred", "darksalmon", "darkseagreen", "darkslateblue",
-    "darkslategray", "darkturquoise", "darkviolet", "deeppink", "deepskyblue", "dimgray",
-    "dodgerblue", "firebrick", "floralwhite", "forestgreen", "fuchsia", "gainsboro", "ghostwhite",
-    "gold", "goldenrod", "gray", "green", "greenyellow", "honeydew", "hotpink", "indianred",
-    "indigo", "ivory", "khaki", "lavender", "lavenderblush", "lawngreen", "lemonchiffon",
-    "lightblue", "lightcoral", "lightcyan", "lightgoldenrodyellow", "lightgreen", "lightgrey",
-    "lightpink", "lightsalmon", "lightseagreen", "lightskyblue", "lightslategray", "lightsteelblue",
-    "lightyellow", "lime", "limegreen", "linen", "magenta", "maroon", "mediumaquamarine",
-    "mediumblue", "mediumorchid", "mediumpurple", "mediumseagreen", "mediumslateblue",
-    "mediumspringgreen", "mediumturquoise", "mediumvioletred", "midnightblue", "mintcream",
-    "mistyrose", "moccasin", "navajowhite", "navy", "oldlace", "olive", "olivedrab", "orange",
-    "orangered", "orchid", "palegoldenrod", "palegreen", "paleturquoise", "palevioletred",
-    "papayawhip", "peachpuff", "peru", "pink", "plum", "powderblue", "purple", "red", "rosybrown",
-    "royalblue", "saddlebrown", "salmon", "sandybrown", "seagreen", "seashell", "sienna", "silver",
-    "skyblue", "slateblue", "slategray", "snow", "springgreen", "steelblue", "tan", "teal",
-    "thistle", "tomato", "turquoise", "violet", "wheat", "white", "whitesmoke", "yellow",
-    "yellowgreen"
-};
-} // namespace
 
 Preferences::Preferences(LammpsWrapper *_lammps, QWidget *parent) :
     QDialog(parent), tabWidget(new QTabWidget),
@@ -791,10 +715,8 @@ SnapshotTab::SnapshotTab(QSettings *_settings, QWidget *parent) :
     zval->setValidator(new QDoubleValidator(0.01, 100.0, 100, this));
     zval->setObjectName("zoom");
 
-    auto *colorcompleter = new QCompleter(imagecolors);
-    colorcompleter->setCompletionMode(QCompleter::InlineCompletion);
-    colorcompleter->setModelSorting(QCompleter::CaseInsensitivelySortedModel);
-    auto *colorvalidator = new QColorValidator(imagecolors);
+    auto *colorcompleter = new QColorCompleter();
+    auto *colorvalidator = new QColorValidator();
     QFontMetrics metrics(fontMetrics());
 
     auto *background = new QLineEdit(settings->value("background", "black").toString());
