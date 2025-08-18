@@ -23,7 +23,7 @@ DumpStyle(image,DumpImage);
 #include "dump_custom.h"
 
 namespace LAMMPS_NS {
-
+class Region;
 class DumpImage : public DumpCustom {
  public:
   int multifile_override;    // used by write_dump command
@@ -101,7 +101,24 @@ class DumpImage : public DumpCustom {
 
   class Image *image;    // class that renders each image
 
-  std::vector<class RegionInfo *> regions;
+  class RegionInfo {
+   public:
+    RegionInfo() = delete;
+    RegionInfo(const std::string &_id, Region *_ptr, double *_color, int _style,
+               double _diameter = 0.5, int _npoints = 0) :
+        id(_id), ptr(_ptr), style(_style), color(_color), diameter(_diameter), npoints(_npoints)
+    {
+    }
+
+    Region *ptr;
+    std::string id;
+    int style;
+    double *color;
+    double diameter;
+    int npoints;
+  };
+
+  std::vector<RegionInfo> regions;
 
   int *chooseghost;    // extended choose array for comm
   double **bufcopy;    // buffer for communicating bond/atom info
