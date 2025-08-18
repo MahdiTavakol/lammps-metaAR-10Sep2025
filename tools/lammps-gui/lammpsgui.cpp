@@ -1748,13 +1748,14 @@ QWizardPage *LammpsGui::tutorial_intro(const int ntutorial, const QString &infot
     page->setPixmap(QWizard::WatermarkPixmap,
                     QPixmap(QString(":/icons/tutorial%1-logo.png").arg(ntutorial)));
 
-    // XXX TODO: update URL to published tutorial DOI
+    // TBD: TODO: update URL to published tutorial DOI
     auto *label = new QLabel(
         QString("<p>This dialog will help you to select and populate a folder with materials "
                 "required to work through tutorial ") +
         QString::number(ntutorial) +
-        QString(" from the LAMMPS tutorials article by Simon Gravelle, Jake Gissinger, and Axel "
-                "Kohlmeyer.</p><p>The materials for this tutorial are downloaded from:<br><b><a "
+        QString(" from the LAMMPS tutorials article by Simon Gravelle, Cecilia Alvares, "
+                "Jake Gissinger, and Axel Kohlmeyer.</p>"
+                "<p>The materials for this tutorial are downloaded from:<br><b><a "
                 "href=\"https://github.com/lammpstutorials/lammpstutorials-article\">https://"
                 "github.com/lammpstutorials/lammpstutorials-article</a></b></p>") +
         infotext);
@@ -2214,12 +2215,15 @@ void LammpsGui::start_lammps()
     lammps.open(narg, args);
     lammpsstatus->show();
 
-    // must have a version newer than the 29 August 2024 release of LAMMPS
-    // TODO: must update this check before next feature release
-    if (lammps.version() < 20240829) {
+    // Must have a LAMMPS version that was released after the 22 July 2025 version
+    /*
+     .. versionchanged:: TBD
+        must update this check before next feature release
+    */
+    if (lammps.version() < 20250722) {
         QMessageBox::critical(this, "Incompatible LAMMPS Version",
                               "LAMMPS-GUI version " LAMMPS_GUI_VERSION " requires\n"
-                              "a LAMMPS version of at least 29 August 2024");
+                              "a LAMMPS version of at least 22 July 2025");
         exit(1);
     }
 

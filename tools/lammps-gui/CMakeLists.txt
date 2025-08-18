@@ -190,6 +190,8 @@ set(PROJECT_SOURCES
   fileviewer.h
   preferences.cpp
   preferences.h
+  qaddon.cpp
+  qaddon.h
   setvariables.cpp
   setvariables.h
   slideshow.h
