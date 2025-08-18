@@ -57,7 +57,6 @@
 #include <cctype>
 #include <cmath>
 #include <cstring>
-#include <utility>
 
 // helper functions for generating triangle meshes
 
@@ -107,19 +106,30 @@ std::vector<triangle> refine_triangle_list(const std::vector<triangle> &inlist)
     vec3 posa = vecnorm(vecadd(tri[0], tri[2]));
     vec3 posb = vecnorm(vecadd(tri[0], tri[1]));
     vec3 posc = vecnorm(vecadd(tri[1], tri[2]));
-    outlist.emplace_back(triangle{{tri[0], posb, posa}});
-    outlist.emplace_back(triangle{{posb, tri[1], posc}});
-    outlist.emplace_back(triangle{{posa, posb, posc}});
-    outlist.emplace_back(triangle{{posa, posc, tri[2]}});
+    outlist.push_back({tri[0], posb, posa});
+    outlist.push_back({posb, tri[1], posc});
+    outlist.push_back({posa, posb, posc});
+    outlist.push_back({posa, posc, tri[2]});
   }
   return outlist;
+}
+
+void scale_and_displace_triangle(triangle &tri, const double *radius, const vec3 &offs)
+{
+  // scale and displace
+  for (int i = 0; i < 3; ++i) {
+    auto &t = tri[i];
+    const auto scale = radscale(radius, t);
+    t[0] = t[0] * scale + offs[0];
+    t[1] = t[1] * scale + offs[1];
+    t[2] = t[2] * scale + offs[2];
+  }
 }
 
 void ellipsoid2wireframe(LAMMPS_NS::Image *img, int level, const double *color, double diameter,
                          const double *center, const double *radius)
 {
-  // offset
-  vec3 offs = {center[0], center[1], center[2]};
+  vec3 offset = {center[0], center[1], center[2]};
 
   // define edges of an octahedron
   vec3 pos1 = {-1.0, 0.0, 0.0};
@@ -137,13 +147,7 @@ void ellipsoid2wireframe(LAMMPS_NS::Image *img, int level, const double *color, 
   // draw level 1 triangle mesh
   if (level <= 1) {
     for (auto &tri : trilist) {
-      // scale and displace
-      for (int i = 0; i < 3; ++i) {
-        auto scale = radscale(radius, tri[i]);
-        tri[i][0] = tri[i][0] * scale + center[0];
-        tri[i][1] = tri[i][1] * scale + center[1];
-        tri[i][2] = tri[i][2] * scale + center[2];
-      }
+      scale_and_displace_triangle(tri, radius, offset);
       img->draw_cylinder(tri[0].data(), tri[1].data(), color, diameter, 3);
       img->draw_cylinder(tri[0].data(), tri[2].data(), color, diameter, 3);
       img->draw_cylinder(tri[1].data(), tri[2].data(), color, diameter, 3);
@@ -151,16 +155,11 @@ void ellipsoid2wireframe(LAMMPS_NS::Image *img, int level, const double *color, 
   }
 
   if (level >= 2) {
-    trilist = std::move(refine_triangle_list(trilist));
+    trilist = refine_triangle_list(trilist);
 
     if (level == 2) {
-      for (auto tri : trilist) {
-        for (int i = 0; i < 3; ++i) {
-          auto scale = radscale(radius, tri[i]);
-          tri[i][0] = tri[i][0] * scale + center[0];
-          tri[i][1] = tri[i][1] * scale + center[1];
-          tri[i][2] = tri[i][2] * scale + center[2];
-        }
+      for (auto &tri : trilist) {
+        scale_and_displace_triangle(tri, radius, offset);
         img->draw_cylinder(tri[0].data(), tri[1].data(), color, diameter, 3);
         img->draw_cylinder(tri[0].data(), tri[2].data(), color, diameter, 3);
         img->draw_cylinder(tri[1].data(), tri[2].data(), color, diameter, 3);
@@ -169,16 +168,11 @@ void ellipsoid2wireframe(LAMMPS_NS::Image *img, int level, const double *color, 
   }
 
   if (level >= 3) {
-    trilist = std::move(refine_triangle_list(trilist));
+    trilist = refine_triangle_list(trilist);
 
     if (level == 3) {
-      for (auto tri : trilist) {
-        for (int i = 0; i < 3; ++i) {
-          auto scale = radscale(radius, tri[i]);
-          tri[i][0] = tri[i][0] * scale + center[0];
-          tri[i][1] = tri[i][1] * scale + center[1];
-          tri[i][2] = tri[i][2] * scale + center[2];
-        }
+      for (auto &tri : trilist) {
+        scale_and_displace_triangle(tri, radius, offset);
         img->draw_cylinder(tri[0].data(), tri[1].data(), color, diameter, 3);
         img->draw_cylinder(tri[0].data(), tri[2].data(), color, diameter, 3);
         img->draw_cylinder(tri[1].data(), tri[2].data(), color, diameter, 3);
@@ -187,15 +181,10 @@ void ellipsoid2wireframe(LAMMPS_NS::Image *img, int level, const double *color, 
   }
 
   if (level == 4) {
-    trilist = std::move(refine_triangle_list(trilist));
+    trilist = refine_triangle_list(trilist);
 
-    for (auto tri : trilist) {
-      for (int i = 0; i < 3; ++i) {
-        auto scale = radscale(radius, tri[i]);
-        tri[i][0] = tri[i][0] * scale + center[0];
-        tri[i][1] = tri[i][1] * scale + center[1];
-        tri[i][2] = tri[i][2] * scale + center[2];
-      }
+    for (auto &tri : trilist) {
+      scale_and_displace_triangle(tri, radius, offset);
       img->draw_cylinder(tri[0].data(), tri[1].data(), color, diameter, 3);
       img->draw_cylinder(tri[0].data(), tri[2].data(), color, diameter, 3);
       img->draw_cylinder(tri[1].data(), tri[2].data(), color, diameter, 3);
@@ -206,8 +195,7 @@ void ellipsoid2wireframe(LAMMPS_NS::Image *img, int level, const double *color, 
 void ellipsoid2filled(LAMMPS_NS::Image *img, int level, const double *color, double diameter,
                       const double *center, const double *radius)
 {
-  // offset
-  vec3 offs = {center[0], center[1], center[2]};
+  vec3 offset = {center[0], center[1], center[2]};
 
   // define edges of an octahedron
   vec3 pos1 = {-1.0, 0.0, 0.0};
@@ -224,60 +212,39 @@ void ellipsoid2filled(LAMMPS_NS::Image *img, int level, const double *color, dou
 
   if (level <= 1) {
     for (auto &tri : trilist) {
-      // scale and displace
-      for (int i = 0; i < 3; ++i) {
-        auto scale = radscale(radius, tri[i]);
-        tri[i][0] = tri[i][0] * scale + center[0];
-        tri[i][1] = tri[i][1] * scale + center[1];
-        tri[i][2] = tri[i][2] * scale + center[2];
-      }
+      scale_and_displace_triangle(tri, radius, offset);
       img->draw_triangle(tri[0].data(), tri[1].data(), tri[2].data(), color);
     }
   }
 
   // refine the list of triangles
   if (level >= 2) {
-    trilist = std::move(refine_triangle_list(trilist));
+    trilist = refine_triangle_list(trilist);
 
     if (level == 2) {
-      for (auto tri : trilist) {
-        for (int i = 0; i < 3; ++i) {
-          auto scale = radscale(radius, tri[i]);
-          tri[i][0] = tri[i][0] * scale + center[0];
-          tri[i][1] = tri[i][1] * scale + center[1];
-          tri[i][2] = tri[i][2] * scale + center[2];
-        }
+      for (auto &tri : trilist) {
+        scale_and_displace_triangle(tri, radius, offset);
         img->draw_triangle(tri[0].data(), tri[1].data(), tri[2].data(), color);
       }
     }
   }
 
   if (level >= 3) {
-    trilist = std::move(refine_triangle_list(trilist));
+    trilist = refine_triangle_list(trilist);
 
     if (level == 3) {
-      for (auto tri : trilist) {
-        for (int i = 0; i < 3; ++i) {
-          auto scale = radscale(radius, tri[i]);
-          tri[i][0] = tri[i][0] * scale + center[0];
-          tri[i][1] = tri[i][1] * scale + center[1];
-          tri[i][2] = tri[i][2] * scale + center[2];
-        }
+      for (auto &tri : trilist) {
+        scale_and_displace_triangle(tri, radius, offset);
         img->draw_triangle(tri[0].data(), tri[1].data(), tri[2].data(), color);
       }
     }
   }
 
   if (level == 4) {
-    trilist = std::move(refine_triangle_list(trilist));
+    trilist = refine_triangle_list(trilist);
 
-    for (auto tri : trilist) {
-      for (int i = 0; i < 3; ++i) {
-        auto scale = radscale(radius, tri[i]);
-        tri[i][0] = tri[i][0] * scale + center[0];
-        tri[i][1] = tri[i][1] * scale + center[1];
-        tri[i][2] = tri[i][2] * scale + center[2];
-      }
+    for (auto &tri : trilist) {
+      scale_and_displace_triangle(tri, radius, offset);
       img->draw_triangle(tri[0].data(), tri[1].data(), tri[2].data(), color);
     }
   }
