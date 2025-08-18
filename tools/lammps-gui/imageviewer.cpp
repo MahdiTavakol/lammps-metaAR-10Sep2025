@@ -16,9 +16,11 @@
 #include "helpers.h"
 #include "lammpsgui.h"
 #include "lammpswrapper.h"
+#include "qaddon.h"
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QDir>
 #include <QDoubleValidator>
@@ -31,6 +33,7 @@
 #include <QIcon>
 #include <QImage>
 #include <QImageReader>
+#include <QIntValidator>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -44,11 +47,13 @@
 #include <QSettings>
 #include <QSizePolicy>
 #include <QSpinBox>
+#include <QStringList>
 #include <QVBoxLayout>
 #include <QVariant>
 
 #include <algorithm>
 #include <cmath>
+#include <unordered_set>
 
 // clang-format off
 /* periodic table of elements for translation of ordinal to atom type */
@@ -136,15 +141,41 @@ int get_pte_from_mass(double mass)
     return idx;
 }
 
+QStringList defaultcolors = {"white", "gray",  "magenta", "cyan",   "yellow",
+                             "blue",  "green", "red",     "orange", "brown"};
+
+// constants
 const QString blank(" ");
-constexpr double VDW_ON       = 1.6;
-constexpr double VDW_OFF      = 0.5;
-constexpr double VDW_CUT      = 1.0;
-constexpr double SHINY_ON     = 0.6;
-constexpr double SHINY_OFF    = 0.2;
-constexpr double SHINY_CUT    = 0.4;
-constexpr double MAX_BOND_CUT = 99.0;
+constexpr double VDW_ON           = 1.6;
+constexpr double VDW_OFF          = 0.5;
+constexpr double VDW_CUT          = 1.0;
+constexpr double SHINY_ON         = 0.6;
+constexpr double SHINY_OFF        = 0.2;
+constexpr double SHINY_CUT        = 0.4;
+constexpr double MAX_BOND_CUT     = 99.0;
+constexpr int DEFAULT_BUFLEN      = 1024;
+constexpr int DEFAULT_NPOINTS     = 100000;
+constexpr double DEFAULT_DIAMETER = 0.2;
+
+enum { FRAME, FILLED, POINTS };
+
 } // namespace
+
+class RegionInfo {
+public:
+    RegionInfo() = delete;
+    RegionInfo(bool _enabled, int _style, const std::string &_color, double _diameter,
+               int _npoints) :
+        enabled(_enabled), style(_style), color(_color), diameter(_diameter), npoints(_npoints)
+    {
+    }
+
+    bool enabled;
+    int style;
+    std::string color;
+    double diameter;
+    int npoints;
+};
 
 ImageViewer::ImageViewer(const QString &fileName, LammpsWrapper *_lammps, QWidget *parent) :
     QDialog(parent), menuBar(new QMenuBar), imageLabel(new QLabel), scrollArea(new QScrollArea),
@@ -274,6 +305,10 @@ ImageViewer::ImageViewer(const QString &fileName, LammpsWrapper *_lammps, QWidge
     recenter->setToolTip("Recenter on group");
     auto *reset = new QPushButton(QIcon(":/icons/gtk-zoom-fit.png"), "");
     reset->setToolTip("Reset view to defaults");
+    auto *regviz = new QPushButton("Regions");
+    regviz->setToolTip("Open dialog for visualizing regions");
+    regviz->setObjectName("regions");
+    regviz->setEnabled(false);
 
     constexpr int BUFLEN = 256;
     char gname[BUFLEN];
@@ -337,6 +372,7 @@ ImageViewer::ImageViewer(const QString &fileName, LammpsWrapper *_lammps, QWidge
     buttonLayout->addWidget(rotdown);
     buttonLayout->addWidget(recenter);
     buttonLayout->addWidget(reset);
+    buttonLayout->addWidget(regviz);
     buttonLayout->addStretch(1);
 
     connect(dossao, &QPushButton::released, this, &ImageViewer::toggle_ssao);
@@ -355,6 +391,7 @@ ImageViewer::ImageViewer(const QString &fileName, LammpsWrapper *_lammps, QWidge
     connect(rotdown, &QPushButton::released, this, &ImageViewer::do_rot_down);
     connect(recenter, &QPushButton::released, this, &ImageViewer::do_recenter);
     connect(reset, &QPushButton::released, this, &ImageViewer::reset_view);
+    connect(regviz, &QPushButton::released, this, &ImageViewer::region_settings);
     connect(combo, SIGNAL(currentIndexChanged(int)), this, SLOT(change_group(int)));
     connect(molbox, SIGNAL(currentIndexChanged(int)), this, SLOT(change_molecule(int)));
 
@@ -382,6 +419,7 @@ ImageViewer::ImageViewer(const QString &fileName, LammpsWrapper *_lammps, QWidge
     scrollArea->setVisible(true);
     updateActions();
     setLayout(mainLayout);
+    update_regions();
 }
 
 void ImageViewer::reset_view()
@@ -646,6 +684,109 @@ void ImageViewer::cmd_to_clipboard()
 #endif
 }
 
+void ImageViewer::region_settings()
+{
+    update_regions();
+    if (regions.size() == 0) return;
+    QDialog regionview;
+    regionview.setWindowTitle(QString("LAMMPS-GUI - Visualize Regions"));
+    regionview.setWindowIcon(QIcon(":/icons/lammps-icon-128x128.png"));
+    regionview.setMinimumSize(100, 50);
+    regionview.setContentsMargins(5, 5, 5, 5);
+    regionview.setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
+
+    auto *title = new QLabel("Visualize Regions:");
+    title->setFrameStyle(QFrame::Panel | QFrame::Raised);
+    title->setLineWidth(1);
+
+    auto *layout = new QGridLayout;
+    layout->addWidget(title, 0, 0, 1, 6, Qt::AlignHCenter);
+
+    layout->addWidget(new QLabel("Region:"), 1, 0);
+    layout->addWidget(new QLabel("Show:"), 1, 1, Qt::AlignHCenter);
+    layout->addWidget(new QLabel("Style:"), 1, 2, Qt::AlignHCenter);
+    layout->addWidget(new QLabel("Color:"), 1, 3, Qt::AlignHCenter);
+    layout->addWidget(new QLabel("Size:"), 1, 4, Qt::AlignHCenter);
+    layout->addWidget(new QLabel("# Points:"), 1, 5, Qt::AlignHCenter);
+
+    auto *colorcompleter = new QColorCompleter;
+    auto *colorvalidator = new QColorValidator;
+    auto *framevalidator = new QDoubleValidator(1.0e-10, 1.0e10, 10);
+    auto *pointvalidator = new QIntValidator(100, 1000000);
+    QFontMetrics metrics(regionview.fontMetrics());
+
+    int idx = 2;
+    for (const auto &reg : regions) {
+        layout->addWidget(new QLabel(reg.first.c_str()), idx, 0);
+        layout->setObjectName(QString(reg.first.c_str()));
+
+        auto *check = new QCheckBox("");
+        check->setCheckState(reg.second->enabled ? Qt::Checked : Qt::Unchecked);
+        layout->addWidget(check, idx, 1, Qt::AlignHCenter);
+        auto *style = new QComboBox;
+        style->setEditable(false);
+        style->addItem("frame");
+        style->addItem("filled");
+        style->addItem("points");
+        style->setCurrentIndex(reg.second->style);
+        layout->addWidget(style, idx, 2);
+        auto *color = new QLineEdit(reg.second->color.c_str());
+        color->setCompleter(colorcompleter);
+        color->setValidator(colorvalidator);
+        color->setFixedSize(metrics.averageCharWidth() * 12, metrics.height() + 4);
+        color->setText(reg.second->color.c_str());
+        layout->addWidget(color, idx, 3);
+        auto *frame = new QLineEdit(QString::number(reg.second->diameter));
+        frame->setValidator(framevalidator);
+        frame->setFixedSize(metrics.averageCharWidth() * 8, metrics.height() + 4);
+        frame->setText(QString::number(reg.second->diameter));
+        layout->addWidget(frame, idx, 4);
+        auto *points = new QLineEdit(QString::number(reg.second->npoints));
+        points->setValidator(pointvalidator);
+        points->setFixedSize(metrics.averageCharWidth() * 10, metrics.height() + 4);
+        points->setText(QString::number(reg.second->npoints));
+        layout->addWidget(points, idx, 5);
+        ++idx;
+    }
+    auto *cancel = new QPushButton("&Cancel");
+    auto *apply  = new QPushButton("&Apply");
+    cancel->setAutoDefault(false);
+    apply->setAutoDefault(true);
+    layout->addWidget(cancel, idx, 0, 1, 3, Qt::AlignHCenter);
+    layout->addWidget(apply, idx, 3, 1, 3, Qt::AlignHCenter);
+    connect(cancel, &QPushButton::released, &regionview, &QDialog::reject);
+    connect(apply, &QPushButton::released, &regionview, &QDialog::accept);
+    regionview.setLayout(layout);
+
+    int rv = regionview.exec();
+
+    // return immediately on cancel
+    if (!rv) return;
+
+    // retrieve data from dialog and store in map
+    for (int idx = 2; idx < (int)regions.size() + 2; ++idx) {
+        auto *item           = layout->itemAtPosition(idx, 0);
+        auto *label          = qobject_cast<QLabel *>(item->widget());
+        auto id              = label->text().toStdString();
+        item                 = layout->itemAtPosition(idx, 1);
+        auto *box            = qobject_cast<QCheckBox *>(item->widget());
+        regions[id]->enabled = (box->checkState() == Qt::Checked);
+        item                 = layout->itemAtPosition(idx, 2);
+        auto *combo          = qobject_cast<QComboBox *>(item->widget());
+        regions[id]->style   = combo->currentIndex();
+        item                 = layout->itemAtPosition(idx, 3);
+        auto *line           = qobject_cast<QLineEdit *>(item->widget());
+        if (line && line->hasAcceptableInput()) regions[id]->color = line->text().toStdString();
+        item = layout->itemAtPosition(idx, 4);
+        line = qobject_cast<QLineEdit *>(item->widget());
+        if (line && line->hasAcceptableInput()) regions[id]->diameter = line->text().toDouble();
+        item = layout->itemAtPosition(idx, 5);
+        line = qobject_cast<QLineEdit *>(item->widget());
+        if (line && line->hasAcceptableInput()) regions[id]->npoints = line->text().toInt();
+    }
+    createImage();
+}
+
 void ImageViewer::change_group(int)
 {
     auto *box = findChild<QComboBox *>("group");
@@ -832,6 +973,31 @@ void ImageViewer::createImage()
 
     if (autobond) dumpcmd += blank + "autobond" + blank + QString::number(bondcutoff) + " 0.5";
 
+    if (regions.size() > 0) {
+        for (const auto &reg : regions) {
+            if (reg.second->enabled) {
+                QString id(reg.first.c_str());
+                QString color(reg.second->color.c_str());
+                switch (reg.second->style) {
+                    case FRAME:
+                        dumpcmd += " region " + id + blank + color;
+                        dumpcmd += " frame " + QString::number(reg.second->diameter);
+                        break;
+                    case FILLED:
+                        dumpcmd += " region " + id + blank + color + " filled";
+                        break;
+                    case POINTS:
+                    default:
+                        dumpcmd += " region " + id + blank + color;
+                        dumpcmd += " points " + QString::number(reg.second->npoints);
+                        dumpcmd += blank + QString::number(reg.second->diameter);
+                        break;
+                }
+                dumpcmd += blank;
+            }
+        }
+    }
+
     dumpcmd += QString(" center s %1 %2 %3").arg(xcenter).arg(ycenter).arg(zcenter);
     dumpcmd += " noinit";
     dumpcmd += " modify boxcolor " + settings.value("boxcolor", "yellow").toString();
@@ -930,6 +1096,40 @@ void ImageViewer::adjustScrollBar(QScrollBar *scrollBar, double factor)
 {
     scrollBar->setValue(
         int((factor * scrollBar->value()) + ((factor - 1) * scrollBar->pageStep() / 2)));
+}
+
+void ImageViewer::update_regions()
+{
+    if (!lammps) return;
+
+    // remove any regions that no longer exist. to avoid inconsistencies while looping
+    // over the regions, we first collect the list of missing id and then apply it.
+    std::unordered_set<std::string> oldkeys;
+    for (const auto &reg : regions) {
+        if (!lammps->has_id("region", reg.first.c_str())) oldkeys.insert(reg.first);
+    }
+    for (const auto &id : oldkeys) {
+        delete regions[id];
+        regions.erase(id);
+    }
+
+    // add any new regions
+    char buffer[DEFAULT_BUFLEN];
+    int nregions = lammps->id_count("region");
+    for (int i = 0; i < nregions; ++i) {
+        if (lammps->id_name("region", i, buffer, DEFAULT_BUFLEN)) {
+            std::string id = buffer;
+            if (regions.count(id) == 0) {
+                const auto &color = defaultcolors[i % defaultcolors.size()].toStdString();
+                auto *reginfo =
+                    new RegionInfo(false, FRAME, color, DEFAULT_DIAMETER, DEFAULT_NPOINTS);
+                regions[id] = reginfo;
+            }
+        }
+    }
+
+    auto *button = findChild<QPushButton *>("regions");
+    if (button) button->setEnabled(regions.size() > 0);
 }
 
 // Local Variables:

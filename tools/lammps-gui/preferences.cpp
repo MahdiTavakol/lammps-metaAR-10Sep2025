@@ -16,6 +16,7 @@
 #include "helpers.h"
 #include "lammpsgui.h"
 #include "lammpswrapper.h"
+#include "qaddon.h"
 #include "ui_lammpsgui.h"
 
 #include <QApplication>
@@ -40,6 +41,7 @@
 #include <QSpacerItem>
 #include <QSpinBox>
 #include <QTabWidget>
+#include <QValidator>
 #if defined(_OPENMP)
 #include <QThread>
 #endif
@@ -58,19 +60,6 @@
 #else
 #include <unistd.h>
 #endif
-
-// convenience class
-namespace {
-class QHline : public QFrame {
-public:
-    QHline(QWidget *parent = nullptr) : QFrame(parent)
-    {
-        setGeometry(QRect(0, 0, 100, 3));
-        setFrameShape(QFrame::HLine);
-        setFrameShadow(QFrame::Sunken);
-    }
-};
-} // namespace
 
 Preferences::Preferences(LammpsWrapper *_lammps, QWidget *parent) :
     QDialog(parent), tabWidget(new QTabWidget),
@@ -180,10 +169,10 @@ void Preferences::accept()
     if (box) settings->setValue("vdwstyle", box->isChecked());
     box = tabWidget->findChild<QCheckBox *>("autobond");
     if (box) settings->setValue("autobond", box->isChecked());
-    auto *combo = tabWidget->findChild<QComboBox *>("background");
-    if (combo) settings->setValue("background", combo->currentText());
-    combo = tabWidget->findChild<QComboBox *>("boxcolor");
-    if (combo) settings->setValue("boxcolor", combo->currentText());
+    field = tabWidget->findChild<QLineEdit *>("background");
+    if (field && field->hasAcceptableInput()) settings->setValue("background", field->text());
+    field = tabWidget->findChild<QLineEdit *>("boxcolor");
+    if (field && field->hasAcceptableInput()) settings->setValue("boxcolor", field->text());
     settings->endGroup();
 
     // general settings
@@ -254,7 +243,7 @@ void Preferences::accept()
     settings->beginGroup("charts");
     field = tabWidget->findChild<QLineEdit *>("title");
     if (field) settings->setValue("title", field->text());
-    combo = tabWidget->findChild<QComboBox *>("smoothchoice");
+    auto *combo = tabWidget->findChild<QComboBox *>("smoothchoice");
     if (combo) settings->setValue("smoothchoice", combo->currentIndex());
     combo = tabWidget->findChild<QComboBox *>("rawbrush");
     if (combo) settings->setValue("rawbrush", combo->currentIndex());
@@ -726,24 +715,22 @@ SnapshotTab::SnapshotTab(QSettings *_settings, QWidget *parent) :
     zval->setValidator(new QDoubleValidator(0.01, 100.0, 100, this));
     zval->setObjectName("zoom");
 
-    auto *background = new QComboBox;
-    background->setObjectName("background");
-    background->addItem("black");
-    background->addItem("darkgray");
-    background->addItem("gray");
-    background->addItem("silver");
-    background->addItem("white");
-    background->setCurrentText(settings->value("background", "black").toString());
+    auto *colorcompleter = new QColorCompleter();
+    auto *colorvalidator = new QColorValidator();
+    QFontMetrics metrics(fontMetrics());
 
-    auto *boxcolor = new QComboBox;
+    auto *background = new QLineEdit(settings->value("background", "black").toString());
+    background->setObjectName("background");
+    background->setCompleter(colorcompleter);
+    background->setValidator(colorvalidator);
+    background->setFixedSize(metrics.averageCharWidth() * 12, metrics.height() + 4);
+
+    auto *boxcolor = new QLineEdit(settings->value("boxcolor", "yellow").toString());
     boxcolor->setObjectName("boxcolor");
-    boxcolor->addItem("yellow");
-    boxcolor->addItem("silver");
-    boxcolor->addItem("gray");
-    boxcolor->addItem("darkred");
-    boxcolor->addItem("darkgreen");
-    boxcolor->addItem("darkblue");
-    boxcolor->setCurrentText(settings->value("boxcolor", "yellow").toString());
+    boxcolor->setCompleter(colorcompleter);
+    boxcolor->setValidator(colorvalidator);
+    boxcolor->setFixedSize(metrics.averageCharWidth() * 12, metrics.height() + 4);
+
     settings->endGroup();
 
     int i = 0;
