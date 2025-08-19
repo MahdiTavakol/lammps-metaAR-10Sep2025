@@ -229,7 +229,10 @@ void AtomKokkos::sort()
 
   if (sort_legacy) {
     sync(Host, ALL_MASK);
+    int prev_auto_sync = lmp->kokkos->auto_sync;
+    lmp->kokkos->auto_sync = 1;
     Atom::sort();
+    lmp->kokkos->auto_sync = prev_auto_sync;
     modified(Host, ALL_MASK);
   } else sort_device();
 }
