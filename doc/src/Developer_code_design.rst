@@ -408,6 +408,19 @@ of the C++ standard library, it is advisable to avoid using any
 extensions beyond what the `C++20 standard offers
 <https://en.cppreference.com/w/cpp/utility/format/format.html>`_.
 
+JSON format input and output
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Since LAMMPS version 12 June 2025, the LAMMPS source code includes a
+copy of the header-only JSON C++ library from https://json.nlohmann.me/.
+Same as with the {fmt} library described above some modification to the
+namespace has been made to avoid collisions with other uses of the same
+library, which may use a different, incompatible version.  To have a
+uniform interface with other parts of LAMMPS, you should be using
+``#include "json.h"`` or ``#include "json_fwd.h"`` (in header files).
+See the implementation of the :doc:`molecule command <molecule>` for an
+example of using this library.
+
 Memory management
 ^^^^^^^^^^^^^^^^^
 
