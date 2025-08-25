@@ -901,7 +901,7 @@ struct TransformView {
         if (modified_legacy_device) {
           k_view.clear_sync_state();
         } else if (modified_device_legacy) {
-          modified_legacy_hostkk = 0
+          modified_legacy_hostkk = 0;
         }
       }
     }
@@ -981,7 +981,7 @@ struct TransformView {
 
       if (modified_device_legacy && modified_hostkk_legacy) {
         if (k_view.need_sync_device()) {
-          modified_device_legacy = 0
+          modified_device_legacy = 0;
         } else if (k_view.need_sync_host()) {
           modified_hostkk_legacy = 0;
         }
