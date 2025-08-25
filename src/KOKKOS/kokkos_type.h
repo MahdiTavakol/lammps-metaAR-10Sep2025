@@ -623,6 +623,7 @@ struct TransformView {
 
  private:
   kk_view k_view;
+  int SINGLE_DEVICE;
  public:
   typename kk_view::t_dev d_view;
   typename kk_view::t_host h_viewkk;
@@ -652,6 +653,8 @@ struct TransformView {
     d_view = {};
     h_viewkk = {};
     h_view = {};
+
+    SINGLE_DEVICE = (k_view.d_view.data() == k_view.h_view.data());
   }
 
   template <typename... Indices>
@@ -667,6 +670,8 @@ struct TransformView {
       h_view = legacy_view(name, ns...);
     else
       h_view = h_viewkk;
+
+    SINGLE_DEVICE = (k_view.d_view.data() == k_view.h_view.data());
   }
 
   template <typename... Indices>
@@ -688,12 +693,16 @@ struct TransformView {
       }
     } else
       h_view = h_viewkk;
+
+    SINGLE_DEVICE = (k_view.d_view.data() == k_view.h_view.data());
   }
 
   // mark device as modified wrt legacy
 
   void modify_device_legacy()
   {
+    if (SINGLE_DEVICE) return modify_hostkk_legacy();
+
     if constexpr (NEED_TRANSFORM) {
       if (!d_view.data()) return;
 
@@ -714,6 +723,8 @@ struct TransformView {
 
   void modify_device()
   {
+    if (SINGLE_DEVICE) return modify_hostkk();
+
     k_view.modify_device();
     modify_device_legacy();
   }
@@ -745,6 +756,8 @@ struct TransformView {
 
   void modify_legacy_device()
   {
+    if (SINGLE_DEVICE) return modify_legacy_hostkk();
+
     if constexpr (NEED_TRANSFORM) {
       if (!h_view.data()) return;
 
@@ -785,7 +798,8 @@ struct TransformView {
 
   void modify_host() {
     if constexpr (NEED_TRANSFORM) {
-      modify_legacy_device();
+      if (!SINGLE_DEVICE)
+        modify_legacy_device();
       modify_legacy_hostkk();
     } else {
      modify_hostkk();
@@ -793,6 +807,9 @@ struct TransformView {
   }
 
   void sync_legacy_to_device(void* buffer = nullptr, int async_flag = 0) {
+
+    if (SINGLE_DEVICE) return sync_legacy_to_hostkk();
+
     if constexpr (NEED_TRANSFORM) {
       if (!d_view.data()) return;
 
@@ -825,6 +842,8 @@ struct TransformView {
 
   void sync_device(void* buffer = nullptr, int async_flag = 0)
   {
+    if (SINGLE_DEVICE) return sync_hostkk(buffer,async_flag);
+
     if (!d_view.data()) return;
 
     if constexpr (NEED_TRANSFORM) {
@@ -905,6 +924,8 @@ struct TransformView {
 
   void sync_device_to_legacy(void* buffer = nullptr, int async_flag = 0)
   {
+    if (SINGLE_DEVICE) return sync_hostkk_to_legacy();
+
     if constexpr (NEED_TRANSFORM) {
       if (!h_view.data()) return;
 
@@ -943,9 +964,10 @@ struct TransformView {
       if (modified_hostkk_legacy) {
         Kokkos::deep_copy(h_view,h_viewkk);
         modified_hostkk_legacy = 0;
-        if (k_view.need_sync_host() || k_view.need_sync_device())
-          modify_legacy_device();
-        else
+        if (k_view.need_sync_host() || k_view.need_sync_device()) {
+          if (SINGLE_DEVICE)
+            modify_legacy_device();
+        } else
           modified_legacy_device = 0;
       }
     }
@@ -968,7 +990,8 @@ struct TransformView {
         } else modified_device_legacy = 0; // prevent double copy
       }
 
-      sync_device_to_legacy(buffer,async_flag);
+      if (!SINGLE_DEVICE)
+        sync_device_to_legacy(buffer,async_flag);
       sync_hostkk_to_legacy();
     } else {
       sync_hostkk(buffer,async_flag);
