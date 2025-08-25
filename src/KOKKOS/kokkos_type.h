@@ -846,16 +846,15 @@ struct TransformView {
 
     if (!d_view.data()) return;
 
+    // prevent double copy
+
     if constexpr (NEED_TRANSFORM) {
       if (modified_legacy_device && k_view.need_sync_device()) {
-        if (modified_legacy_hostkk || modified_hostkk_legacy) {
-          std::string msg = "TransformView::modify ERROR: ";
-          msg += "Concurrent modification of views that sync to Kokkos device view ";
-          msg += "in TransformView \"";
-          msg += d_view.label();
-          msg += "\"\n";
-          Kokkos::abort(msg.c_str());
-        } else modified_legacy_device = 0; // prevent double copy
+        if (modified_hostkk_legacy) {
+          modified_legacy_device = 0;
+        } else if (modified_legacy_hostkk) {
+          k_view.clear_sync_state();
+        }
       }
     }
 
@@ -895,16 +894,15 @@ struct TransformView {
   {
     if (!h_viewkk.data()) return;
 
+    // prevent double copy
+
     if constexpr (NEED_TRANSFORM) {
       if (modified_legacy_hostkk && k_view.need_sync_host()) {
-        if (modified_legacy_device || modified_device_legacy) {
-          std::string msg = "TransformView::modify ERROR: ";
-          msg += "Concurrent modification of views that sync to Kokkos host view ";
-          msg += "in TransformView \"";
-          msg += d_view.label();
-          msg += "\"\n";
-          Kokkos::abort(msg.c_str());
-        } else modified_legacy_hostkk = 0; // prevent double copy
+        if (modified_legacy_device) {
+          k_view.clear_sync_state();
+        } else if (modified_device_legacy) {
+          modified_legacy_hostkk = 0
+        }
       }
     }
 
@@ -979,15 +977,14 @@ struct TransformView {
     if constexpr (NEED_TRANSFORM) {
       if (!h_view.data()) return;
 
+      // prevent double copy
+
       if (modified_device_legacy && modified_hostkk_legacy) {
-        if (k_view.need_sync_device() || k_view.need_sync_host()) {
-          std::string msg = "TransformView::modify ERROR: ";
-          msg += "Concurrent modification of views that sync to legacy host view ";
-          msg += "in TransformView \"";
-          msg += d_view.label();
-          msg += "\"\n";
-          Kokkos::abort(msg.c_str());
-        } else modified_device_legacy = 0; // prevent double copy
+        if (k_view.need_sync_device()) {
+          modified_device_legacy = 0
+        } else if (k_view.need_sync_host()) {
+          modified_hostkk_legacy = 0;
+        }
       }
 
       if (!SINGLE_DEVICE)
