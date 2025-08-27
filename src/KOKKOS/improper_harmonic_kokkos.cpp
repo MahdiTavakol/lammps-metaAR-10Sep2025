@@ -319,9 +319,8 @@ void ImproperHarmonicKokkos<DeviceType>::coeff(int narg, char **arg)
 {
   ImproperHarmonic::coeff(narg, arg);
 
-  int ilo, ihi;
-  utils::bounds(FLERR, arg[0], 1, atom->nimpropertypes, ilo, ihi, error);
-  for (int i = ilo; i <= ihi; i++) {
+  int n = atom->nimpropertypes;
+  for (int i = 1; i <= n; i++) {
     k_k.h_view[i] = k[i];
     k_chi.h_view[i] = chi[i];
   }

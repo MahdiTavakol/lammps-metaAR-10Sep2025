@@ -272,9 +272,8 @@ void BondFENEKokkos<DeviceType>::coeff(int narg, char **arg)
 {
   BondFENE::coeff(narg, arg);
 
-  int ilo, ihi;
-  utils::bounds(FLERR, arg[0], 1, atom->nbondtypes, ilo, ihi, error);
-  for (int i = ilo; i <= ihi; i++) {
+  int n = atom->nbondtypes;
+  for (int i = 1; i <= n; i++) {
     k_k.h_view[i] = k[i];
     k_r0.h_view[i] = r0[i];
     k_epsilon.h_view[i] = epsilon[i];
