@@ -134,25 +134,15 @@ if(BUILD_LAMMPS_GUI)
       COMMAND ${CMAKE_COMMAND} -E echo "The flatpak and flatpak-builder commands required to build a LAMMPS-GUI flatpak bundle were not found. Skipping.")
   endif()
 
-  # when compiling on macOS, create an "app bundle"
   if(APPLE)
     file(STRINGS ${LAMMPS_DIR}/src/version.h line REGEX LAMMPS_VERSION)
     string(REGEX REPLACE "#define LAMMPS_VERSION \"([0-9]+) ([A-Za-z][A-Za-z][A-Za-z])[A-Za-z]* ([0-9]+)\""
                         "\\1\\2\\3" LAMMPS_RELEASE "${line}")
-    set_target_properties(lammps-gui_build PROPERTIES
-      MACOSX_BUNDLE_INFO_PLIST ${LAMMPS_DIR}/cmake/packaging/MacOSXBundleInfo.plist.in
-      MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
-      MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
-      MACOSX_BUNDLE_ICON_FILE lammps.icns
-      MACOSX_BUNDLE_COPYRIGHT "(c) 2003 - 2025, The LAMMPS Developers"
-      MACOSX_BUNDLE TRUE
-    )
-    # purge app bundle directory during configure
-    file(REMOVE_RECURSE ${CMAKE_BINARY_DIR}/lammps-gui.app)
 
     # additional targets to populate the bundle tree and create the .dmg image file
-    set(APP_CONTENTS ${CMAKE_BINARY_DIR}/lammps-gui.app/Contents)
+    set(APP_CONTENTS ${CMAKE_BINARY_DIR}/lammps-gui_build-prefix/bin/lammps-gui.app/Contents)
     if(BUILD_TOOLS)
+      file(REMOVE_RECURSE ${CMAKE_BINARY_DIR}/lammps-gui_build-prefix/bin/lammps-gui.app)
       add_custom_target(complete-bundle
         ${CMAKE_COMMAND} -E make_directory ${APP_CONTENTS}/bin
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_BINARY_DIR}/lmp ${APP_CONTENTS}/bin/
@@ -173,7 +163,7 @@ if(BUILD_LAMMPS_GUI)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LAMMPS_DIR}/doc/lammps.1 ${APP_CONTENTS}/share/lammps/man/man1/
         COMMAND ${CMAKE_COMMAND} -E create_symlink lammps.1 ${APP_CONTENTS}/share/lammps/man/man1/lmp.1
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LAMMPS_DIR}/doc/msi2lmp.1 ${APP_CONTENTS}/share/lammps/man/man1
-        DEPENDS lammps-gui lammps lmp binary2txt stl_bin2txt msi2lmp phana
+        DEPENDS lammps lmp binary2txt stl_bin2txt msi2lmp phana lammps-gui_build
         COMMENT "Copying additional files into macOS app bundle tree"
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
       )
@@ -198,7 +188,7 @@ if(BUILD_LAMMPS_GUI)
       set(FFMPEG_TARGET copy-ffmpeg)
     endif()
     add_custom_target(dmg
-      COMMAND ${LAMMPS_DIR}/cmake/packaging/build_macos_dmg.sh ${LAMMPS_RELEASE}
+      COMMAND ${LAMMPS_DIR}/cmake/packaging/build_macos_dmg.sh ${LAMMPS_RELEASE} ${CMAKE_BINARY_DIR}/lammps-gui_build-prefix/bin/lammps-gui.app
       DEPENDS complete-bundle ${WHAM_TARGET} ${FFMPEG_TARGET}
       COMMENT "Create Drag-n-Drop installer disk image from app bundle"
       BYPRODUCT LAMMPS-macOS-multiarch-${LAMMPS_VERSION}.dmg
