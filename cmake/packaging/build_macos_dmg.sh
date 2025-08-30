@@ -3,6 +3,7 @@
 APP_NAME=lammps-gui
 VERSION="$1"
 LAMMPS_GUI_APP="$2"
+rm -rv ${APP_NAME}.app
 mv -v ${LAMMPS_GUI_APP} .
 
 echo "Delete old files, if they exist"
@@ -29,12 +30,10 @@ mv ${APP_NAME}.app LAMMPS_GUI.app
 cd LAMMPS_GUI.app/Contents
 
 echo "Update rpath for LAMMPS and LAMMPS-GUI to link to liblammps.0.dylib"
-install_name_tool -change @rpath/liblammps.0.dylib \
-    /Applications/LAMMPS_GUI.app/Contents/Frameworks/liblammps.0.dylib \
-    /Applications/LAMMPS_GUI.app/Contents/bin/lmp
-install_name_tool -change @rpath/liblammps.0.dylib \
-    /Applications/LAMMPS_GUI.app/Contents/Frameworks/liblammps.0.dylib \
-    /Applications/LAMMPS_GUI.app/Contents/MacOS/lammps-gui
+LIB_DIR=/Applications/LAMMPS_GUI.app/Contents/Frameworks
+LIB_NAME=liblammps.0.dylib
+install_name_tool -change @rpath/${LIB_NAME} ${LIB_DIR}/${LIB_NAME} bin/lmp
+install_name_tool -change @rpath/${LIB_NAME} ${LIB_DIR}/${LIB_NAME} MacOS/lammps-gui
 
 echo "Attach icons to LAMMPS console and GUI executables"
 echo "read 'icns' (-16455) \"Resources/lammps.icns\";" > icon.rsrc
@@ -110,7 +109,7 @@ hdiutil detach "${DEVICE}"
 hdiutil convert "${APP_NAME}-rw.dmg" -format UDZO -o "LAMMPS_GUI-macOS-multiarch-${VERSION}.dmg"
 
 echo "Attach icon to .dmg file"
-echo "read 'icns' (-16455) \"${LAMMPS_GUI_APP}/Contents/Resources/lammps.icns\";" > icon.rsrc
+echo "read 'icns' (-16455) \"${APP_NAME}.app/Contents/Resources/lammps.icns\";" > icon.rsrc
 Rez -a icon.rsrc -o LAMMPS_GUI-macOS-multiarch-${VERSION}.dmg
 SetFile -a C LAMMPS_GUI-macOS-multiarch-${VERSION}.dmg
 rm icon.rsrc
