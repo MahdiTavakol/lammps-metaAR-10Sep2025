@@ -28,6 +28,14 @@ mv ${APP_NAME}.app/Contents/Resources/LAMMPS_DMG_Background.png .background/back
 mv ${APP_NAME}.app LAMMPS_GUI.app
 cd LAMMPS_GUI.app/Contents
 
+echo "Update rpath for LAMMPS and LAMMPS-GUI to link to liblammps.0.dylib"
+install_name_tool -change @rpath/liblammps.0.dylib \
+    /Applications/LAMMPS_GUI.app/Contents/Frameworks/liblammps.0.dylib \
+    /Applications/LAMMPS_GUI.app/Contents/bin/lmp
+install_name_tool -change @rpath/liblammps.0.dylib \
+    /Applications/LAMMPS_GUI.app/Contents/Frameworks/liblammps.0.dylib \
+    /Applications/LAMMPS_GUI.app/Contents/MacOS/lammps-gui
+
 echo "Attach icons to LAMMPS console and GUI executables"
 echo "read 'icns' (-16455) \"Resources/lammps.icns\";" > icon.rsrc
 Rez -a icon.rsrc -o bin/lmp
