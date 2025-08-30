@@ -194,7 +194,7 @@ if(BUILD_LAMMPS_GUI)
       COMMAND ${LAMMPS_DIR}/cmake/packaging/build_macos_dmg.sh ${LAMMPS_RELEASE} ${CMAKE_BINARY_DIR}/lammps-gui_build-prefix/bin/lammps-gui.app
       DEPENDS complete-bundle ${WHAM_TARGET} ${FFMPEG_TARGET}
       COMMENT "Create Drag-n-Drop installer disk image from app bundle"
-      BYPRODUCT LAMMPS-macOS-multiarch-${LAMMPS_RELEASE}.dmg
+      BYPRODUCT LAMMPS-macOS-multiarch-GUI-${LAMMPS_RELEASE}.dmg
       WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     )
     # settings or building on Windows with Visual Studio
@@ -263,7 +263,7 @@ if(BUILD_LAMMPS_GUI)
       COMMAND ${LAMMPS_DIR}/cmake/packaging/build_linux_tgz.sh ${LAMMPS_RELEASE}
       DEPENDS lmp lammps-gui_build ${WHAM_EXE}
       COMMENT "Create compressed tar file of LAMMPS-GUI with dependent libraries and wrapper"
-      BYPRODUCT LAMMPS-Linux-amd64-${LAMMPS_RELEASE}.tar.gz
+      BYPRODUCT LAMMPS-Linux-x86_64-GUI-${LAMMPS_RELEASE}.tar.gz
       WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     )
   endif()
