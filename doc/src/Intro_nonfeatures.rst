@@ -26,9 +26,13 @@ Here are suggestions on how to perform these tasks:
   written in Python or C/C++ that run LAMMPS and visualize or plot its
   output.  Examples of this are provided in the python directory and
   described on the :doc:`Python <Python_head>` doc page.
-
-  Since version 2 August 2023 :ref:`a LAMMPS-GUI tool <lammps_gui>` is
-  included in LAMMPS.  Also, there are several external wrappers or GUI
+  Since version 2 August 2023 `the LAMMPS-GUI application
+  <https://lammps-gui.lammps.org>`_ is available and can be compiled
+  together with LAMMPS and linked to the LAMMPS library for running and
+  visualizing LAMMPS simulation inputs.  As of August 2025, LAMMPS-GUI
+  is maintained in its own `repository on GitHub
+  <https://github.com/akohlmey/lammps-gui/>`_.
+  Also, there are several external wrappers or GUI
   front ends that are mentioned on the `Pre-/post-processing tools page
   <https://www.lammps.org/prepost.html>`_ of the LAMMPS homepage.
 
