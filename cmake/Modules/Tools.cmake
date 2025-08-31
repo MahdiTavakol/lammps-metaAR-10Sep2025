@@ -63,6 +63,11 @@ if(BUILD_LAMMPS_GUI)
     DEPENDS lammps
     BUILD_BYPRODUCTS <INSTALL_DIR>/bin/lammps-gui
   )
+  add_custom_target(lammps-gui ALL
+          ${CMAKE_COMMAND} -E copy_if_different lammps-gui_build-prefix/bin/lammps-gui* ${CMAKE_BINARY_DIR}
+          DEPENDS lammps-gui_build
+  )
+
   # packaging support for LAMMPS-GUI when compiled with LAMMPS
   if (NOT LAMMPS_GUI_USE_PLUGIN)
     option(BUILD_WHAM "Download and compile WHAM executable from Grossfield Lab" YES)
