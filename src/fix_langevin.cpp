@@ -52,7 +52,7 @@ FixLangevin::FixLangevin(LAMMPS *lmp, int narg, char **arg) :
     tstr(nullptr), flangevin(nullptr), tforce(nullptr), franprev(nullptr), lv(nullptr),
     id_temp(nullptr), random(nullptr)
 {
-  if (narg < 7) error->all(FLERR, "Illegal fix langevin command");
+  if (narg < 7) utils::missing_cmd_args(FLERR, "fix langevin", error);
 
   dynamic_group_allow = 1;
   scalar_flag = 1;
@@ -73,8 +73,8 @@ FixLangevin::FixLangevin(LAMMPS *lmp, int narg, char **arg) :
   t_period = utils::numeric(FLERR, arg[5], false, lmp);
   seed = utils::inumeric(FLERR, arg[6], false, lmp);
 
-  if (t_period <= 0.0) error->all(FLERR, "Fix langevin period must be > 0.0");
-  if (seed <= 0) error->all(FLERR, "Illegal fix langevin command");
+  if (t_period <= 0.0) error->all(FLERR, 5, "Fix langevin period must be > 0.0");
+  if (seed <= 0) error->all(FLERR, 6, "Fix langevin seed value must be > 0");
 
   // initialize Marsaglia RNG with processor-unique seed
 
@@ -99,33 +99,39 @@ FixLangevin::FixLangevin(LAMMPS *lmp, int narg, char **arg) :
   int iarg = 7;
   while (iarg < narg) {
     if (strcmp(arg[iarg], "angmom") == 0) {
-      if (iarg + 2 > narg) error->all(FLERR, "Illegal fix langevin command");
+      if (iarg + 2 > narg) utils::missing_cmd_args(FLERR, "fix langevin angmom", error);
       if (strcmp(arg[iarg + 1], "no") == 0)
         ascale = 0.0;
       else
         ascale = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
       iarg += 2;
     } else if (strcmp(arg[iarg], "omega") == 0) {
-      if (iarg + 2 > narg) error->all(FLERR, "Illegal fix langevin command");
+      if (iarg + 2 > narg) utils::missing_cmd_args(FLERR, "fix langevin angmom", error);
+      error->all(FLERR, "Illegal fix langevin command");
       oflag = utils::logical(FLERR, arg[iarg + 1], false, lmp);
       iarg += 2;
     } else if (strcmp(arg[iarg], "scale") == 0) {
-      if (iarg + 3 > narg) error->all(FLERR, "Illegal fix langevin command");
+      if (iarg + 3 > narg) utils::missing_cmd_args(FLERR, "fix langevin scale", error);
       int itype = utils::inumeric(FLERR, arg[iarg + 1], false, lmp);
       double scale = utils::numeric(FLERR, arg[iarg + 2], false, lmp);
-      if (itype <= 0 || itype > atom->ntypes) error->all(FLERR, "Illegal fix langevin command");
+      if (itype <= 0 || itype > atom->ntypes)
+        error->all(FLERR, iarg + 1,
+                   "Invalid fix langevin scale type. Must be 1 < type <= {}", atom->ntypes);
       ratio[itype] = scale;
       iarg += 3;
     } else if (strcmp(arg[iarg], "tally") == 0) {
-      if (iarg + 2 > narg) error->all(FLERR, "Illegal fix langevin command");
+      if (iarg + 2 > narg) utils::missing_cmd_args(FLERR, "fix langevin tally", error);
       tallyflag = utils::logical(FLERR, arg[iarg + 1], false, lmp);
       iarg += 2;
     } else if (strcmp(arg[iarg], "zero") == 0) {
-      if (iarg + 2 > narg) error->all(FLERR, "Illegal fix langevin command");
+      if (iarg + 2 > narg)  utils::missing_cmd_args(FLERR, "fix langevin zero", error);
       zeroflag = utils::logical(FLERR, arg[iarg + 1], false, lmp);
       iarg += 2;
+    } else if (strcmp(arg[iarg], "gjf") == 0) {
+      error->all(FLERR, iarg, "The GJF integrator formulation in fix {} has been removed.\n"
+                 "Please use fix gjf instead: https://docs.lammps.org/fix_gjf.html", style);
     } else
-      error->all(FLERR, "Illegal fix langevin command");
+      error->all(FLERR, iarg, "Unknown fix langevin keyword {}", arg[iarg]);
   }
 
   // set temperature = nullptr, user can override via fix_modify if wants bias
