@@ -131,25 +131,29 @@ other options listed above.
 
 Here is the meaning of the optional keywords.
 
-If the *compress* keyword is set to *yes* (which is the default), then
-after atoms are deleted, the atom IDs are re-assigned so that they run
-from 1 to the number of atoms in the system.  Note that this is not done
-for molecular systems (see the :doc:`atom_style <atom_style>` command),
-regardless of the *compress* setting, since it would corrupt the bond
-connectivity information that has already been assigned.  However, the
-:doc:`reset_atoms id <reset_atoms>` command can be used after this
-command to accomplish the same thing.
+If the *compress* keyword is set to *yes*, then after atoms are deleted,
+then atom IDs are re-assigned so that they run from 1 to the number of
+atoms in the system.  This option is enabled by default for atomic
+systems.  Note that in this case, the re-assignment of IDs is not really
+a compression, where gaps in atom IDs are removed by decrementing atom
+IDs that are larger.  Instead the IDs for all atoms are erased, and new
+IDs are assigned so that the atoms owned by individual processors have
+consecutive IDs, as the :doc:`create_atoms <create_atoms>` command
+explains.  This is efficient, but incompatible with molecular systems.
 
-Note that this re-assignment of IDs is not really a compression, where
-gaps in atom IDs are removed by decrementing atom IDs that are larger.
-Instead the IDs for all atoms are erased, and new IDs are assigned so
-that the atoms owned by individual processors have consecutive IDs, as
-the :doc:`create_atoms <create_atoms>` command explains.
+.. versionchanged:: TBD
+
+For molecular systems (see the :doc:`atom_style <atom_style>` command),
+the atom ID re-assignment now calls the :doc:`reset_atoms id
+<reset_atoms>` command internally.  For backward compatibility, the
+default setting is *no* in this case.  This process does *not* preserve
+the order of atoms with respect to their atom IDs.  See the *condense*
+keyword below.
 
 .. versionadded:: TBD
 
 If the *condense* keyword set to *yes*, then after atoms are deleted,
-the atom IDs are re-assigned in a way such that the order of atom-IDs is
+the atom IDs are re-assigned in such a way that the order of atom-IDs is
 preserved.  This process is not efficient and cannot be used for very
 large systems and requires local storage that scales with the number of
 total atoms in the system.  Also, the *compress* and the *condense*
@@ -161,19 +165,23 @@ interactions, is one where the topology of the interactions is
 typically defined in the data file read by the :doc:`read_data
 <read_data>` command, and where the interactions themselves are
 defined with the :doc:`bond_style <bond_style>`, :doc:`angle_style
-<angle_style>`, etc. commands.  If you delete atoms from such a system,
-you must be careful not to end up with bonded interactions that are
-stored by remaining atoms but which include deleted atoms.  This will
-cause LAMMPS to generate a "missing atoms" error when the bonded
-interaction is computed.  The *bond* and *mol* keywords offer two ways
-to do that.
+<angle_style>`, etc. commands.
 
-It the *bond* keyword is set to *yes* then any bond or angle or
-dihedral or improper interaction that includes a deleted atom is also
-removed from the lists of such interactions stored by non-deleted
-atoms.  Note that simply deleting interactions due to dangling bonds
-(e.g., at a surface) may result in a inaccurate or invalid model for
-the remaining atoms.
+.. warning::
+
+   If you delete atoms from a molecular system, you must be careful
+   not to end up with bonded interactions that are stored by remaining
+   atoms but which include deleted atoms.  This will cause LAMMPS to
+   generate a "missing atoms" error when the bonded interaction is
+   computed.  The *bond yes* and *mol yes* settings are recommended
+   to avoid such inconsistencies.
+
+If the *bond* keyword is set to *yes* then any bond or angle or dihedral
+or improper interaction that includes a deleted atom is also removed
+from the lists of such interactions stored by non-deleted atoms.  Note
+that simply deleting interactions due to dangling bonds (e.g., at a
+surface) may result in a inaccurate or invalid model for the remaining
+atoms.
 
 It the *mol* keyword is set to *yes*, then for every atom that is
 deleted, all other atoms in the same molecule (with the same molecule
@@ -220,4 +228,5 @@ Related commands
 Default
 """""""
 
-The option defaults are compress = yes, bond = no, mol = no.
+The option defaults are compress = yes for atomic systems, otherwise compress = no;
+also bond = no and mol = no.
