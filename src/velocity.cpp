@@ -53,7 +53,7 @@ void Velocity::command(int narg, char **arg)
   if (domain->box_exist == 0)
     error->all(FLERR,"Velocity command before simulation box is defined" + utils::errorurl(33));
   if (atom->natoms == 0)
-    error->all(FLERR,"Velocity command with no atoms existing");
+    error->all(FLERR,"Velocity command on a system without atoms");
 
   // atom masses must all be set
 
@@ -62,14 +62,14 @@ void Velocity::command(int narg, char **arg)
   // identify group
 
   igroup = group->find(arg[0]);
-  if (igroup == -1) error->all(FLERR, "Could not find velocity group ID {}", arg[0]);
+  if (igroup == -1) error->all(FLERR, Error::ARGZERO, "Could not find velocity group ID {}", arg[0]);
   groupbit = group->bitmask[igroup];
 
   // check if velocities of atoms in rigid bodies are updated
 
   if (modify->check_rigid_group_overlap(groupbit) && (comm->me == 0))
-    error->warning(FLERR,"Changing velocities of atoms in rigid bodies. "
-                     "This has no effect unless rigid bodies are rebuild");
+    error->warning(FLERR, "Changing velocities of atoms in rigid bodies. "
+                   "This has no effect unless rigid bodies are rebuilt");
 
   // identify style
 
@@ -78,7 +78,7 @@ void Velocity::command(int narg, char **arg)
   else if (strcmp(arg[1],"scale") == 0) style = SCALE;
   else if (strcmp(arg[1],"ramp") == 0) style = RAMP;
   else if (strcmp(arg[1],"zero") == 0) style = ZERO;
-  else error->all(FLERR,"Unknown velocity keyword: {}", arg[1]);
+  else error->all(FLERR, 1, "Unknown velocity command style: {}", arg[1]);
 
   // set defaults
 
@@ -128,8 +128,7 @@ void Velocity::command(int narg, char **arg)
     double t_desired = utils::numeric(FLERR,arg[2],false,lmp);
     int seed = utils::inumeric(FLERR,arg[3],false,lmp);
     create(t_desired,seed);
-  }
-  else if (style == SET) set(narg-2,&arg[2]);
+  } else if (style == SET) set(narg-2,&arg[2]);
   else if (style == SCALE) scale(narg-2,&arg[2]);
   else if (style == RAMP) ramp(narg-2,&arg[2]);
   else if (style == ZERO) zero(narg-2,&arg[2]);
