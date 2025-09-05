@@ -238,7 +238,7 @@ void Force::create_pair(const std::string &style, int trysuffix)
   pair = new_pair(style, trysuffix, sflag);
   pair_style = store_style(style, sflag);
 
-  if (pair->kokkosable && (!lmp->kokkos || !lmp->kokkos->kokkos_exists))
+  if (pair && pair->kokkosable && (!lmp->kokkos || !lmp->kokkos->kokkos_exists))
     error->all(FLERR, Error::NOLASTLINE, "Cannot use KOKKOS styles without enabling KOKKOS");
 }
 
@@ -347,7 +347,7 @@ void Force::create_bond(const std::string &style, int trysuffix)
   bond = new_bond(style, trysuffix, sflag);
   bond_style = store_style(style, sflag);
 
-  if (bond->kokkosable && (!lmp->kokkos || !lmp->kokkos->kokkos_exists))
+  if (bond && bond->kokkosable && (!lmp->kokkos || !lmp->kokkos->kokkos_exists))
     error->all(FLERR, Error::NOLASTLINE, "Cannot use KOKKOS styles without enabling KOKKOS");
 }
 
@@ -420,7 +420,7 @@ void Force::create_angle(const std::string &style, int trysuffix)
   angle = new_angle(style, trysuffix, sflag);
   angle_style = store_style(style, sflag);
 
-  if (angle->kokkosable && (!lmp->kokkos || !lmp->kokkos->kokkos_exists))
+  if (angle && angle->kokkosable && (!lmp->kokkos || !lmp->kokkos->kokkos_exists))
     error->all(FLERR, Error::NOLASTLINE, "Cannot use KOKKOS styles without enabling KOKKOS");
 }
 
@@ -493,7 +493,7 @@ void Force::create_dihedral(const std::string &style, int trysuffix)
   dihedral = new_dihedral(style, trysuffix, sflag);
   dihedral_style = store_style(style, sflag);
 
-  if (dihedral->kokkosable && (!lmp->kokkos || !lmp->kokkos->kokkos_exists))
+  if (dihedral && dihedral->kokkosable && (!lmp->kokkos || !lmp->kokkos->kokkos_exists))
     error->all(FLERR, Error::NOLASTLINE, "Cannot use KOKKOS styles without enabling KOKKOS");
 }
 
@@ -566,7 +566,7 @@ void Force::create_improper(const std::string &style, int trysuffix)
   improper = new_improper(style, trysuffix, sflag);
   improper_style = store_style(style, sflag);
 
-  if (improper->kokkosable && (!lmp->kokkos || !lmp->kokkos->kokkos_exists))
+  if (improper && improper->kokkosable && (!lmp->kokkos || !lmp->kokkos->kokkos_exists))
     error->all(FLERR, Error::NOLASTLINE, "Cannot use KOKKOS styles without enabling KOKKOS");
 }
 
