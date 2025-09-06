@@ -23,7 +23,6 @@
 #include "error.h"
 #include "force.h"
 #include "group.h"
-#include "hashlittle.h"
 #include "input.h"
 #include "math_const.h"
 #include "math_eigen.h"
@@ -1601,7 +1600,7 @@ void FixRigidSmall::create_bodies(tagint *bodyID)
   m = 0;
   for (i = 0; i < nlocal; i++) {
     if (!(mask[i] & groupbit)) continue;
-    proclist[m] = hashlittle(&bodyID[i],sizeof(tagint),0) % nprocs;
+    proclist[m] = std::hash<tagint *>{}(&bodyID[i]) % nprocs;
     inbuf[m].me = me;
     inbuf[m].ilocal = i;
     inbuf[m].atomID = tag[i];
