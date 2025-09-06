@@ -179,15 +179,9 @@ endif()
 # warn about potentially problematic GCC compiler versions
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   if (CMAKE_CXX_STANDARD GREATER_EQUAL 17)
-    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
-      message(WARNING "Using ${CMAKE_CXX_COMPILER_ID} compiler version ${CMAKE_CXX_COMPILER_VERSION} "
-        "with C++17 is not recommended. Please use ${CMAKE_CXX_COMPILER_ID} compiler version 9.x or later")
-    endif()
-  endif()
-  if (CMAKE_CXX_STANDARD GREATER_EQUAL 11)
-    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
-      message(WARNING "Using ${CMAKE_CXX_COMPILER_ID} compiler version ${CMAKE_CXX_COMPILER_VERSION} "
-        "with C++11 is not recommended. Please use ${CMAKE_CXX_COMPILER_ID} compiler version 5.x or later")
+    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.3)
+      message(WARNING "Using the GNU compilers version ${CMAKE_CXX_COMPILER_VERSION} with C++17 "
+              "or later is not recommended. Please use the GNU compilers version 9.3 or later")
     endif()
   endif()
 endif()
