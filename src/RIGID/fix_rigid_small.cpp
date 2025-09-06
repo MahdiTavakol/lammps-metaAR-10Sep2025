@@ -1600,7 +1600,7 @@ void FixRigidSmall::create_bodies(tagint *bodyID)
   m = 0;
   for (i = 0; i < nlocal; i++) {
     if (!(mask[i] & groupbit)) continue;
-    proclist[m] = std::hash<tagint *>{}(&bodyID[i]) % nprocs;
+    proclist[m] = std::hash<tagint>{}(bodyID[i]) % nprocs;
     inbuf[m].me = me;
     inbuf[m].ilocal = i;
     inbuf[m].atomID = tag[i];
