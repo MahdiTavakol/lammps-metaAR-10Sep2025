@@ -719,7 +719,7 @@ void CommBrick::exchange()
 
 void CommBrick::borders()
 {
-  int i,n,itype,icollection,iswap,dim,ineed,twoneed;
+  int i,n,icollection,iswap,dim,ineed,twoneed;
   int nsend,nrecv,sendflag,nfirst,nlast,ngroup,nprior;
   double lo,hi;
   int *collection;
