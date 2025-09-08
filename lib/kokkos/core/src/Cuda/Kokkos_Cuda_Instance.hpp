@@ -351,7 +351,7 @@ class CudaInternal {
                                       int device) const {
     if constexpr (setCudaDevice) set_cuda_device();
 #if CUDART_VERSION >= 13000
-    cudaMemLocation loc = {cudaMemLocationTypeDevice, dstDevice};
+    cudaMemLocation loc = {cudaMemLocationTypeDevice, device};
     return cudaMemAdvise(devPtr, count, advice, loc);
 #else
     return cudaMemAdvise(devPtr, count, advice, device);
