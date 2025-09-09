@@ -38,6 +38,7 @@
 #include <algorithm>
 #include <cstring>
 #include <set>
+#include <unordered_set>
 #include <utility>
 
 using namespace LAMMPS_NS;
@@ -841,7 +842,7 @@ void DeleteAtoms::bondring(int nbuf, char *cbuf, void *ptr)
   int n_histories = histories.size();
 
   // cbuf = list of N deleted atom IDs from other proc, put them in hash
-  std::set<tagint> hash(list, list + nbuf);
+  std::unordered_set<tagint> hash(list, list + nbuf);
 
   // loop over my atoms and their bond topology lists
   // if any atom in an interaction matches atom ID in hash, delete interaction
@@ -941,7 +942,7 @@ void DeleteAtoms::molring(int n, char *cbuf, void *ptr)
 
   // cbuf = list of N molecule IDs from other proc, put them in hash
 
-  std::set<tagint> hash(list, list + n);
+  std::unordered_set<tagint> hash(list, list + n);
 
   // loop over my atoms, if matches molecule ID in hash, delete that atom
 
