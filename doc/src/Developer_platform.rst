@@ -57,7 +57,7 @@ similar Python functions or Unix shell commands.  Please note that the
 you need to use the ``string()`` member function of the
 `std::filesystem::path class
 <https://en.cppreference.com/w/cpp/filesystem/path.html>`_ to get access
-to the path as C++ string.
+to the path as a C++ string class instance.
 
 .. doxygenvariable:: filepathsep
    :project: progguide
