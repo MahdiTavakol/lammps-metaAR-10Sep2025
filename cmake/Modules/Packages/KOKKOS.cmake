@@ -258,10 +258,6 @@ RegisterNPairStyle(${KOKKOS_PKG_SOURCES_DIR}/npair_kokkos.h)
 RegisterNPairStyle(${KOKKOS_PKG_SOURCES_DIR}/npair_halffull_kokkos.h)
 
 if(PKG_DPD-REACT)
-  if(NOT (KOKKOS_PREC STREQUAL "DOUBLE"))
-    message(FATAL_ERROR "Must use KOKKOS_PREC=double with package DPD-REACT")
-  endif()
-
   get_property(KOKKOS_PKG_SOURCES GLOBAL PROPERTY KOKKOS_PKG_SOURCES)
   list(APPEND KOKKOS_PKG_SOURCES ${KOKKOS_PKG_SOURCES_DIR}/npair_ssa_kokkos.cpp)
   RegisterNPairStyle(${KOKKOS_PKG_SOURCES_DIR}/npair_ssa_kokkos.h)
