@@ -145,7 +145,7 @@ propagate.  So-called :doc:`"soft-core" potentials <pair_fep_soft>` or
 the :doc:`"soft" repulsive-only pair style <pair_soft>` are less prone
 for this behavior (depending on the settings in use) and can be used at
 the beginning of a simulation.  Also, single precision numbers can
-overflow much faster, so for the GPU or INTEL package it may be
+overflow much faster, so for the GPU, KOKKOS, or INTEL package it may be
 beneficial to run with double precision initially before switching to
 mixed or single precision for faster execution when the system has
 relaxed.
