@@ -84,8 +84,6 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
       iarg++;
     } else error->all(FLERR,"Illegal compute q6-smooth/atom command");
   }
-
-  request->cutoff = cutoff;
 }
 
 /* ----------------------------------------------------------------------- */
@@ -110,6 +108,7 @@ void ComputeQ6SmoothAtom::init()
   memory->create(ds1j,nmax,"compute_q6_smooth_atom:ds1j");
   update_npair();
   allocate_diff_pairs();
+  request->cutoff = cutoff;
 }
 
 /* ----------------------------------------------------------------------- */

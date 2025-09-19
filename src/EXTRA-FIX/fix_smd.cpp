@@ -26,9 +26,12 @@
 #include "group.h"
 #include "respa.h"
 #include "update.h"
+#include "modify.h"
+
 
 #include <cmath>
 #include <cstring>
+#include <iostream>
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
@@ -36,14 +39,16 @@ using namespace FixConst;
 enum { SMD_NONE=0,
        SMD_TETHER=1<<0, SMD_COUPLE=1<<1,
        SMD_CVEL=1<<2, SMD_CFOR=1<<3,
-       SMD_AUTOX=1<<4, SMD_AUTOY=1<<5, SMD_AUTOZ=1<<6};
+       SMD_AUTOX=1<<4, SMD_AUTOY=1<<5, SMD_AUTOZ=1<<6,
+       SMD_DIRECTION=1<<7,
+       SMD_COMPUTE=1<<8};
 
 static constexpr double SMALL = 0.001;
 
 /* ---------------------------------------------------------------------- */
 
 FixSMD::FixSMD(LAMMPS *lmp, int narg, char **arg) :
-  Fix(lmp, narg, arg)
+  Fix{lmp, narg, arg}
 {
   styleflag = SMD_NONE;
   k_smd = f_smd = v_smd = -1.0;
@@ -110,6 +115,26 @@ FixSMD::FixSMD(LAMMPS *lmp, int narg, char **arg) :
     r0 = utils::numeric(FLERR,arg[argoffs+5],false,lmp);
     if (r0 < 0) error->all(FLERR,"R0 < 0 for fix smd command");
     argoffs +=6;
+  } else if (strcmp(arg[argoffs],"direction") == 0) {
+    if (narg < argoffs+5) error->all(FLERR,"Illegal fix smd command");
+      styleflag |= SMD_DIRECTION;
+      xc = utils::numeric(FLERR,arg[argoffs+1],false,lmp);
+      yc = utils::numeric(FLERR,arg[argoffs+2],false,lmp);
+      zc = utils::numeric(FLERR,arg[argoffs+3],false,lmp);
+      r0 = utils::numeric(FLERR,arg[argoffs+4],false,lmp);
+      xflag = 0;
+      yflag = 0;
+      zflag = 0;
+      if ( !xc && !yc && !zc) error->all(FLERR,"At least one of x, y and z must be non-zero");
+    if (r0 < 0) error->all(FLERR,"R0 < 0 for fix smd command");
+    argoffs += 5;
+  } else if (strcmp(arg[argoffs],"compute") == 0) {
+    if (narg < argoffs +3) error->all(FLERR,"Illegal fix smd command");
+    styleflag |= SMD_COMPUTE;
+    cid = utils::strdup(arg[argoffs+1]);
+    r0 = utils::numeric(FLERR,arg[argoffs+2], false,lmp);
+    if (r0 < 0) error->all(FLERR, "R0 < 0 for fix smd command");
+    argoffs+=3;
   } else error->all(FLERR,"Illegal fix smd command");
 
   force_flag = 0;
@@ -139,7 +164,7 @@ void FixSMD::init()
     dx = xc - xcm[0];
     dy = yc - xcm[1];
     dz = zc - xcm[2];
-  } else {     /* SMD_COUPLE */
+  } else if (styleflag & SMD_COUPLE) {     /* SMD_COUPLE */
     masstotal2 = group->mass(igroup2);
     group->xcm(igroup2,masstotal2,xcm2);
     if (styleflag & SMD_AUTOX) dx = xcm2[0] - xcm[0];
@@ -158,6 +183,29 @@ void FixSMD::init()
     xn = dx/r_old;
     yn = dy/r_old;
     zn = dz/r_old;
+  }
+  
+  if (styleflag & SMD_DIRECTION)
+  {  
+	  xn = xc/sqrt(xc*xc + yc*yc + zc*zc);
+	  yn = yc/sqrt(xc*xc + yc*yc + zc*zc);
+	  zn = zc/sqrt(xc*xc + yc*yc + zc*zc);
+    xc = xcm[0];
+    yc = xcm[1];
+    zc = xcm[2];
+	  r_old = r0;
+	  r_now = r0;
+  }
+
+  if (styleflag & SMD_COMPUTE)
+  {
+    Compute* cmptTmp = modify->get_compute_by_id(cid);
+    cmpt = dynamic_cast<ComputeDiffAtom*>(cmptTmp);
+    if (cmptTmp == nullptr)
+      error->all(FLERR,"Cannot find the compute");
+    if (cmpt == nullptr)
+      error->all(FLERR,"The compute is not of the correct type");
+    r_old = cmpt->scalar;
   }
 
   if (utils::strmatch(update->integrate_style,"^respa")) {
@@ -188,6 +236,8 @@ void FixSMD::post_force(int vflag)
   v_init(vflag);
 
   if (styleflag & SMD_TETHER) smd_tether();
+  else if (styleflag & SMD_DIRECTION) smd_direction();
+  else if (styleflag & SMD_COMPUTE) smd_compute();
   else smd_couple();
 
   if (styleflag & SMD_CVEL) {
@@ -299,6 +349,169 @@ void FixSMD::smd_tether()
           v[5] = -fy*massfrac*unwrap[2];
           v_tally(i,v);
         }
+      }
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void FixSMD::smd_direction()
+{
+  double xcm[3];
+  group->xcm(igroup,masstotal,xcm);
+
+  double dt = update->dt;
+  if (strstr(update->integrate_style,"respa"))
+    dt = ((Respa *) update->integrate)->step[ilevel_respa];
+
+  // fx,fy,fz = components of k * (r-r0)
+
+  double dx,dy,dz,fx,fy,fz,r,dr;
+
+  dx = (xcm[0] - xc)*xn;
+  dy = (xcm[1] - yc)*yn;
+  dz = (xcm[2] - zc)*zn;
+
+  r  = dx + dy + dz;
+  dr = r + r0 - r_old;
+  if (styleflag & SMD_CVEL) {
+	  if (true) {
+		fx = k_smd*dr*xn;
+		fy = k_smd*dr*yn;
+		fz = k_smd*dr*zn;
+		pmf += k_smd * dr * dr * v_smd * dt;
+	  } else {
+		fx = 0;
+		fy = 0;
+		fz = 0;
+	  }
+  } else {
+	  fx = f_smd*xn;
+	  fy = f_smd*yn;
+	  fz = f_smd*zn;
+  }
+
+  // apply restoring force to atoms in group
+  // f = -k*(r-r0)*mass/masstotal
+
+  double **x = atom->x;
+  double **f = atom->f;
+  imageint *image = atom->image;
+  int *mask = atom->mask;
+  int *type = atom->type;
+  double *mass = atom->mass;
+  double *rmass = atom->rmass;
+  double massfrac;
+  double unwrap[3],v[6];
+  int nlocal = atom->nlocal;
+
+  ftotal[0] = ftotal[1] = ftotal[2] = 0.0;
+  force_flag = 0;
+
+  if (rmass) {
+    for (int i = 0; i < nlocal; i++)
+      if (mask[i] & groupbit) {
+        massfrac = rmass[i]/masstotal;
+        f[i][0] -= fx*massfrac;
+        f[i][1] -= fy*massfrac;
+        f[i][2] -= fz*massfrac;
+        ftotal[0] -= fx*massfrac;
+        ftotal[1] -= fy*massfrac;
+        ftotal[2] -= fz*massfrac;
+        if (evflag) {
+          domain->unmap(x[i],image[i],unwrap);
+          v[0] = -fx*massfrac*unwrap[0];
+          v[1] = -fy*massfrac*unwrap[1];
+          v[2] = -fz*massfrac*unwrap[2];
+          v[3] = -fx*massfrac*unwrap[1];
+          v[4] = -fx*massfrac*unwrap[2];
+          v[5] = -fy*massfrac*unwrap[2];
+          v_tally(i, v);
+        }
+      }
+  } else {
+    for (int i = 0; i < nlocal; i++)
+      if (mask[i] & groupbit) {
+        massfrac = mass[type[i]]/masstotal;
+        f[i][0] -= fx*massfrac;
+        f[i][1] -= fy*massfrac;
+        f[i][2] -= fz*massfrac;
+        ftotal[0] -= fx*massfrac;
+        ftotal[1] -= fy*massfrac;
+        ftotal[2] -= fz*massfrac;
+        if (evflag) {
+          domain->unmap(x[i],image[i],unwrap);
+          v[0] = -fx*massfrac*unwrap[0];
+          v[1] = -fy*massfrac*unwrap[1];
+          v[2] = -fz*massfrac*unwrap[2];
+          v[3] = -fx*massfrac*unwrap[1];
+          v[4] = -fx*massfrac*unwrap[2];
+          v[5] = -fy*massfrac*unwrap[2];
+          v_tally(i, v);
+        }
+      }
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void FixSMD::smd_compute()
+{
+  double **f = atom->f;
+  int *type = atom->type;
+  int *mask = atom->mask;
+  double *mass = atom->mass;
+  double *rmass = atom->rmass;
+  int nlocal = atom->nlocal;
+
+  cmpt->compute_all();
+
+  r_now = cmpt->scalar;
+  const int diff_x_col = cmpt->diff_x_col;
+  const int diff_y_col = cmpt->diff_y_col;
+  const int diff_z_col = cmpt->diff_z_col;
+  double** cmpt_array_atom = cmpt->array_atom;
+
+  double fcv;
+
+  bigint ntimestep = update->ntimestep;
+  if (ntimestep == 0) {
+    r_old = r_now; 
+    return;
+  }
+  
+  ftotal[0] = ftotal[1] = ftotal[2] = 0.0;
+  force_flag = 0;
+
+  double dr = r_now + r0 - r_old;
+  if (styleflag & SMD_CVEL) {
+		fcv = k_smd*dr;
+  } else {
+	  fcv = f_smd;
+  }
+
+  double massfrac;
+  if (rmass) {
+    for (int i = 0; i < nlocal; i++)
+      if (mask[i] & groupbit) {
+        massfrac = rmass[i]/masstotal;
+        f[i][0] -= cmpt_array_atom[i][diff_x_col]*fcv*massfrac;
+        f[i][1] -= cmpt_array_atom[i][diff_y_col]*fcv*massfrac;
+        f[i][2] -= cmpt_array_atom[i][diff_z_col]*fcv*massfrac;
+        ftotal[0] -= cmpt_array_atom[i][diff_x_col]*fcv*massfrac;
+        ftotal[1] -= cmpt_array_atom[i][diff_y_col]*fcv*massfrac;
+        ftotal[2] -= cmpt_array_atom[i][diff_z_col]*fcv*massfrac;
+      }
+  } else {
+    for (int i = 0; i < nlocal; i++)
+      if (mask[i] & groupbit) {
+        massfrac = mass[type[i]]/masstotal;
+        f[i][0] -= cmpt_array_atom[i][diff_x_col]*fcv*massfrac;
+        f[i][1] -= cmpt_array_atom[i][diff_y_col]*fcv*massfrac;
+        f[i][2] -= cmpt_array_atom[i][diff_z_col]*fcv*massfrac;
+        ftotal[0] -= cmpt_array_atom[i][diff_x_col]*fcv*massfrac;
+        ftotal[1] -= cmpt_array_atom[i][diff_y_col]*fcv*massfrac;
+        ftotal[2] -= cmpt_array_atom[i][diff_z_col]*fcv*massfrac;
       }
   }
 }
@@ -451,7 +664,7 @@ void FixSMD::write_restart(FILE *fp)
 
 void FixSMD::restart(char *buf)
 {
-  auto *list = (double *)buf;
+  auto list = (double *)buf;
   r_old = list[0];
   xn=list[1];
   yn=list[2];
@@ -473,7 +686,6 @@ void FixSMD::post_force_respa(int vflag, int ilevel, int /*iloop*/)
 double FixSMD::compute_vector(int n)
 {
   // only sum across procs one time
-
   if (force_flag == 0) {
     MPI_Allreduce(ftotal,ftotal_all,3,MPI_DOUBLE,MPI_SUM,world);
     force_flag = 1;

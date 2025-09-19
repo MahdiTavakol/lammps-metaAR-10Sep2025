@@ -21,6 +21,7 @@ FixStyle(smd,FixSMD);
 #define LMP_FIX_SMD_H
 
 #include "fix.h"
+#include "compute_diff_atom.h"
 
 namespace LAMMPS_NS {
 
@@ -44,12 +45,19 @@ class FixSMD : public Fix {
   int styleflag;
   double r_old, r_now, pmf;
 
+  class ComputeDiffAtom* cmpt;
+  std::string cid;
+
   int igroup2, group2bit;
   double masstotal, masstotal2;
   int ilevel_respa;
   double ftotal[3], ftotal_all[7];
   int force_flag;
 
+  int last_reduce_step;
+
+  void smd_direction();
+  void smd_compute();
   void smd_tether();
   void smd_couple();
 };
