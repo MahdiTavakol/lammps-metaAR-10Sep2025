@@ -79,3 +79,9 @@ lib/
 build*/
 CMakeFiles/
 CMakeCache.txt
+InstallLammps-oneapi-most2-Debug.sh
+InstallLammps-oneapi-most2.sh
+cmake/presets/oneapi-AVX2-debug-sanitizer.cmake
+cmake/presets/oneapi-AVX2-debug.cmake
+cmake/presets/oneapi-AVX2.cmake
+cmake/presets/oneapi-debug.cmake
