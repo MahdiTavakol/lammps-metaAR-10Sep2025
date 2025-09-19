@@ -28,6 +28,7 @@ class NeighRequest : protected Pointers {
   friend class NPairSkipIntel;
   friend class NPairSkipTrimIntel;
   friend class FixIntel;
+  friend class ComputeQ6SmoothAtom;
 
  public:
   enum { REGULAR, INTRA, INTER };
