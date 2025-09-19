@@ -61,3 +61,12 @@ src/Makefile.package.settings-e
 /install/x64-GUI-MSVC
 /install
 .Rhistory
+lib/
+*.a
+*.o
+*.so
+*.dylib
+*.exe
+build*/
+CMakeFiles/
+CMakeCache.txt
