@@ -1118,6 +1118,8 @@ static std::array<double,3> ComputeQ6SmoothAtom::calculate_dq6i_dxj(
   const double& ds2)
 {
 
+  std::array<double,3> output;
+
   double cij = 0.0;
   for (int indx = 0; indx < 13; ++indx) { 
     cij += q6ms_real_i[indx]*q6ms_real_j[indx] + q6ms_imag_i[indx]*q6ms_imag_j[indx];
@@ -1172,12 +1174,14 @@ static std::array<double,3> ComputeQ6SmoothAtom::calculate_dq6i_dxj(
     double dqhati_dxj_real[3];
     double dqhati_dxj_imag[3];
     for (int dim = 0; dim < 3; dim++) {
-      dqhati_dxj_real[dim] = dqk_drj_real[indx][dim]*inv_q6_norm_i[k];
-      dqhati_dxj_imag[dim] = dqk_drj_imag[indx][dim]*inv_q6_norm_i[k];
-      dqhati_dxj_real[dim] -= q6ms_real[k][indx]*dq_norm_drk[dim]*inv_q6_norm_i[k]; 
-      dqhati_dxj_imag[dim] -= q6ms_imag[k][indx]*dq_norm_drk[dim]*inv_q6_norm_i[k];
+      dqhati_dxj_real[dim] = dqi_drj_real[indx][dim]*inv_q6_norm_i[i];
+      dqhati_dxj_imag[dim] = dqi_drj_imag[indx][dim]*inv_q6_norm_i[i];
+      dqhati_dxj_real[dim] -= q6ms_real[i][indx]*dq_norm_drk[dim]*inv_q6_norm_i[i]; 
+      dqhati_dxj_imag[dim] -= q6ms_imag[i][indx]*dq_norm_drk[dim]*inv_q6_norm_i[i];
+      output[dim] +=  wpair*(dqhatk_dxj_real[dim]*Rei + dqhatk_dxj_imag[dim]*Imi)+wpair2*drjk[dim];
     }
   }
+  return output;
 }
 
 /* ----------------------------------------------------------------------
