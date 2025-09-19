@@ -97,7 +97,7 @@ void ComputeQ6SmoothAtom::init()
   memory->create(diff_q6ms_imag,nmax,13,3,"compute_q6_smooth_atom:diff_q6ms_imag");
   memory->create(inv_q6_norm_i,nmax,"compute_q6_smooth_atom:q6_norm_i");
   memory->create(inv_nbnum_i,nmax,"compute_q6_smooth_atom:inv_nbnum_i");
-  memory->create(diff_q6_norm_pair,nmax, "compute_q6_smooth_atom:diff_q6_norm_pair");
+  memory->create(diff_q6_norm_pair,nmax,3,"compute_q6_smooth_atom:diff_q6_norm_pair");
   memory->create(Ni,nmax,"compute_q6_smooth_atom:Ni");
   memory->create(ds2i,nmax,"compute_q6_smooth:ds2i");
   memory->create(diff_Ni,nmax,3,"compute_q6_smooth_atom:diff_Ni");
@@ -106,8 +106,6 @@ void ComputeQ6SmoothAtom::init()
   memory->create(s1j,nmax,"compute_q6_smooth_atom:s1j");
   memory->create(ds0j,nmax,"compute_q6_smooth_atom:ds0j");
   memory->create(ds1j,nmax,"compute_q6_smooth_atom:ds1j");
-  update_npair();
-  allocate_diff_pairs();
   request->cutoff = cutoff;
 }
 
@@ -146,7 +144,7 @@ void ComputeQ6SmoothAtom::compute_all()
   int natoms = atom->natoms;
 
 
-  neighbor->build_one(list);
+  //neighbor->build_one(list);
 
   if (atom->nmax > nmax)
   {
@@ -161,7 +159,7 @@ void ComputeQ6SmoothAtom::compute_all()
     memory->grow(diff_q6_norm_pair,nmax,3,"compute_q6_smooth_atom:diff_q6_norm_pair");
     memory->grow(Ni,nmax,"compute_q6_smooth_atom:Ni");
     memory->grow(ds2i,nmax,"compute_q6_smooth_atom:ds2i");
-    memory->grow(diff_Ni,nmax,"compute_q6_smooth_atom:diff_Ni");
+    memory->grow(diff_Ni,nmax,3,"compute_q6_smooth_atom:diff_Ni");
     memory->grow(hj,nmax,3,"compute_q6_smooth_atom:hj");
     memory->grow(s0j,nmax,"compute_q6_smooth_atom:s0j");
     memory->grow(s1j,nmax,"compute_q6_smooth_atom:s1j");
@@ -171,6 +169,12 @@ void ComputeQ6SmoothAtom::compute_all()
     deallocate_diff_pairs();
     allocate_diff_pairs();
   } else if (neighbor->ago == 0) {
+    update_npair();
+    deallocate_diff_pairs();
+    allocate_diff_pairs();
+  }
+
+  if (!diff_q6ms_real_pair) {
     update_npair();
     deallocate_diff_pairs();
     allocate_diff_pairs();
@@ -325,7 +329,14 @@ void ComputeQ6SmoothAtom::compute_all()
     double q6_norm = 0.0;
     double diff_q6_norm[3] = {0.0,0.0,0.0};
     for (jj = 0; jj < jnum; jj++)
-      for (int k = 0; k < 3; k++)
+      for (int k = 0; k < 3; k++)      double distx = x[i][0] - x[j][0];
+      double disty = x[i][1] - x[j][1];
+      double distz = x[i][2] - x[j][2];
+      double r = sqrt(distx * distx + disty * disty + distz * distz);
+      if (r < 1e-8 ||  r >= cutoff) continue;
+      nbnum++;
+      std::array<double,3> distance = {distx,disty,distz};
+      std::array<double,104> Y6m = calculate_Y6m(distance);
         diff_q6_norm_pair[jj][k] = 0.0;
     for (int indx = 0; indx < 13; indx++) {
       q6_norm += q6ms_real[i][indx]*q6ms_real[i][indx]+q6ms_imag[i][indx]*q6ms_imag[i][indx];
@@ -534,6 +545,33 @@ void ComputeQ6SmoothAtom::compute_all()
     for (int kk = 0; kk < jnum; kk++) {
       int k = jlist[kk];
       k &= NEIGHMASK;
+
+
+      double distx = x[k][0] - x[i][0];
+      double disty = x[k][1] - x[i][1];
+      double distz = x[k][2] - x[i][2];
+      double r = sqrt(distx * distx + disty * disty + distz * distz);
+      if (r < 1e-8 ||  r >= cutoff) continue;
+
+      std::array<double,3> distance = {distx,disty,distz};
+      std::array<double,104> Y6m = calculate_Y6m(distance);
+
+      double diff_q6ms_ii_kk_real[13][3];
+      double diff_q6ms_ii_kk_imag[13][3];
+
+      for (int deg = -6; deg <= 6; deg++) {
+        int offset = (deg+6)*8;
+        int indx = deg + 6;
+
+        diff_q6ms_ii_kk_real[indx][0] += Y6m[offset + 2];
+        diff_q6ms_ii_kk_imag[indx][0] += Y6m[offset + 3];
+        diff_q6ms_ii_kk_real[indx][1] += Y6m[offset + 4];
+        diff_q6ms_ii_kk_imag[indx][1] += Y6m[offset + 5];
+        diff_q6ms_ii_kk_real[indx][2] += Y6m[offset + 6];
+        diff_q6ms_ii_kk_imag[indx][2] += Y6m[offset + 7];
+      }
+
+
       for (int indx= 0; indx<13;indx++) {
         for (int dim = 0; dim < 3; dim++) {
           hj[k][dim] += 2.0*diff_q6ms_real_pair[ii][kk][indx][dim]*sigma_wpair_Rej[indx];
@@ -1027,9 +1065,9 @@ void ComputeQ6SmoothAtom::deallocate_diff_pairs()
     memory->sfree(x);
   };
   
-  rel4D(diff_q6ms_real_pair);
-  rel4D(diff_q6ms_imag_pair);
-  rel3D(diff_Ni_pair);
+  if (diff_q6ms_real_pair) rel4D(diff_q6ms_real_pair);
+  if (diff_q6ms_imag_pair) rel4D(diff_q6ms_imag_pair);
+  if (diff_Ni_pair) rel3D(diff_Ni_pair);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -1066,6 +1104,78 @@ void ComputeQ6SmoothAtom::dist(const double& input, const double& cutoff, double
     {
       output += coeff[i]*pow(x,i);
       diff += i*coeff[i]*pow(x,i-1);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------
+   since the size of q6mi_dxj become very large we need to calculate the
+    diff on the fly with this function 
+   --------------------------------------------------------------------- */
+static std::array<double,3> ComputeQ6SmoothAtom::calculate_dq6i_dxj(
+  const std::array<double,3>& dist, const double& inv_nbnum, const double& Q6_norm, 
+  double* q6m_real_i, double *q6m_real_j, double *q6m_imag_i, double *q6ms_imag_j, 
+  const double& ds2)
+{
+
+  double cij = 0.0;
+  for (int indx = 0; indx < 13; ++indx) { 
+    cij += q6ms_real_i[indx]*q6ms_real_j[indx] + q6ms_imag_i[indx]*q6ms_imag_j[indx];
+  }
+
+  double s0val, s1val;
+  double ds0, ds1;
+  dist(r,cutoff, s0val,ds0);
+  s1(cij, s1val, ds1);
+
+  double wpair  = ds2*ds1*s0val;
+  double wpair2 = ds2*ds0*s1val;
+  double distx = dist[0];
+  double disty = dist[1];
+  double distz = dist[2];
+  double r = std::sqrt(distx*distx+disty*disty+distz*distz);
+  double drij[3] = {distx/r,disty/r,distz/r};
+  
+  double dqi_drj_real[13][3];
+  double dqi_drj_imag[13][3];
+  std::array<double,104> Y6m = calculate_Y6m(dist);
+
+  /*
+   * It is possible that all of the neighbors of the atom k
+   * do not belong to this rank, if it is a ghost atom
+   * That is the reason why we cannot have its nbnum and 
+   * qnorm.. Accordingly these values have been forward communicated
+   * for ghost atoms.
+   */
+  for (int deg = -6; deg <= 6; deg++) {
+    int offset = (deg+6)*8;
+    int indx = deg + 6;
+    dqi_drj_real[indx][0] = Y6m[offset + 2]*inv_nbnum_i[i];
+    dqi_drj_imag[indx][0] = Y6m[offset + 3]*inv_nbnum_i[i];
+    dqi_drj_real[indx][1] = Y6m[offset + 4]*inv_nbnum_i[i];
+    dqi_drj_imag[indx][1] = Y6m[offset + 5]*inv_nbnum_i[i];
+    dqi_drj_real[indx][2] = Y6m[offset + 6]*inv_nbnum_i[i];
+    dqi_drj_imag[indx][2] = Y6m[offset + 7]*inv_nbnum_i[i];
+  }
+  
+  double dq_norm_drj[3] = {0.0,0.0,0.0};
+  for (int indx = 0; indx < 13; indx++) {
+    for (int dim = 0; dim < 3; dim++)
+      dq_norm_drj[dim] += dqi_drj_real[indx][dim]*q6ms_real_i[indx] + dqi_drj_imag[indx][dim]*q6ms_imag_i[indx];
+  }
+  for (int dim= 0; dim < 3; dim++) {
+    dq_norm_drj[dim] *= inv_q6_norm_i[i];
+  }
+
+  for (int indx = 0; indx< 13; indx++) {
+    // these two are just for the indx and all the values for the 13 indexes are summed at the end.
+    double dqhati_dxj_real[3];
+    double dqhati_dxj_imag[3];
+    for (int dim = 0; dim < 3; dim++) {
+      dqhati_dxj_real[dim] = dqk_drj_real[indx][dim]*inv_q6_norm_i[k];
+      dqhati_dxj_imag[dim] = dqk_drj_imag[indx][dim]*inv_q6_norm_i[k];
+      dqhati_dxj_real[dim] -= q6ms_real[k][indx]*dq_norm_drk[dim]*inv_q6_norm_i[k]; 
+      dqhati_dxj_imag[dim] -= q6ms_imag[k][indx]*dq_norm_drk[dim]*inv_q6_norm_i[k];
     }
   }
 }
