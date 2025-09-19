@@ -70,3 +70,12 @@ lib/
 build*/
 CMakeFiles/
 CMakeCache.txt
+lib/
+*.a
+*.o
+*.so
+*.dylib
+*.exe
+build*/
+CMakeFiles/
+CMakeCache.txt
