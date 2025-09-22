@@ -74,6 +74,10 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   double** diff_Ni;
   // npairs X 3
   double*** diff_Ni_pair;
+  // nmax
+  double* gi;
+  // nmax 
+  double* Gi;
   // nmax X 3
   double  **hj;
   // the flag for the comm_forward
@@ -99,6 +103,7 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   static constexpr double dist_coeffs[6] = {1.0,0.0,0.0,-10.0,15.0,-6.0}; 
   static void dist(const double& input, const double& cutoff, double& output, double& diff);
   static std::array<double,104> calculate_Y6m(const std::array<double,3>& dist);
+  static std::array<double,3> calculate_dq6i_dxj(const std::array<double,3>& dist, const double& inv_nbnum, const double& Q6_norm);
 
 
 };
