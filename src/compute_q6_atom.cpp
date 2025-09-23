@@ -92,7 +92,7 @@ void ComputeQ6Atom::compute_all()
   int i, j, ii, jj, inum, jnum;
   int *ilist, *jlist, *numneigh, **firstneigh;
 
-  neighbor->build_one(list);
+  //neighbor->build_one(list);
   //it is the same as atom->nlocal and list->gnum is zero since we have not requested for ghost neighbors in the list.
   inum = list->inum;   
   ilist = list->ilist;
