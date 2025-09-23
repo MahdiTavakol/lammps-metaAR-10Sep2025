@@ -46,14 +46,14 @@ void ComputeCParamAtom::compute_all()
   if (last_compute == update->ntimestep) return;
   last_compute = update->ntimestep;
 
-  double one = 0.0;
+
   double **x = atom->x;
-  int *type = atom->type;
+
   int *mask = atom->mask;
-  int nlocal = atom->nlocal;
+ 
 
 
-  bool pairflag = true;
+ 
 
   if (atom->nmax > nmax)
   {

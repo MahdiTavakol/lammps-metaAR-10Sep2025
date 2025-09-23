@@ -49,16 +49,12 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   // the imaginary part of q6ms for each atom
   // nmax X 13
   double** q6ms_imag;
-  // natoms (nlocal + nghosts) X 13 X 3
+  // nmax X 13 X 3
   double ***diff_q6ms_real, ***diff_q6ms_imag;
   // nmax
   double* inv_q6_norm_i;
   // nmax
   double* inv_nbnum_i;
-  // npairs (npairs) X 13 X 3 
-  double ****diff_q6ms_real_pair, ****diff_q6ms_imag_pair;
-  // nmax X 3
-  double **diff_q6_norm_pair;
 
   
   // nmax;
@@ -67,8 +63,6 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   double* ds2i;
   // nmax X 3
   double** diff_Ni;
-  // npairs X 3
-  double*** diff_Ni_pair;
   // nmax X 13
   double** gi_real, ** gi_imag;
   // nmax 
@@ -105,7 +99,7 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   static void dist(const double& input, const double& cutoff, double& output, double& diff);
   static std::array<double,104> calculate_Y6m(const std::array<double,3>& dist);
   static void calculate_dq6i_drj(const std::array<double,N_DIM>& dist, 
-                                 const double*  q6m_real_i, const double* q6m_imag_j,
+                                 const double*  q6m_real_i, const double* q6m_imag_i,
                                  const double& inv_nbnum, const double& inv_q6_norm_i,
                                  double** dqi_drj_real, double** dqi_drj_imag);
 

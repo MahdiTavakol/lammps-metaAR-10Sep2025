@@ -54,7 +54,6 @@ class FixSMD : public Fix {
   double ftotal[3], ftotal_all[7];
   int force_flag;
 
-  int last_reduce_step;
 
   void smd_direction();
   void smd_compute();

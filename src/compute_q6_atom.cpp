@@ -51,8 +51,8 @@ void ComputeQ6Atom::compute_all()
   double **x = atom->x;
   int *type = atom->type;
   int *mask = atom->mask;
-  int nlocal = atom->nlocal;
-  int natoms = atom->natoms;
+
+  
 
   if (atom->nmax > nmax)
   {

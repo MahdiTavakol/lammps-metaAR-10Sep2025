@@ -402,7 +402,7 @@ void FixMetaAR::setup(int vflag)
 
 /* ---------------------------------------------------------------------- */
 
-void FixMetaAR::post_force(int vflag)
+void FixMetaAR::post_force(int /*vflag*/)
 {
   if (update->ntimestep % nevery) return;
 
@@ -559,16 +559,16 @@ void FixMetaAR::modify_force()
 {
   double **x = atom->x;
   double **f = atom->f;
-  int *type = atom->type;
-  double *mass = atom->mass;
+
+
   int *mask = atom->mask;
   imageint *image = atom->image;
   int nlocal = atom->nlocal;
-  int natoms = atom->natoms;
+
 
 
   double sforce[3] = {0.0,0.0,0.0};
-  double e[6];
+
 
   double** CV1_atom = CV1Compute->array_atom;
   const int cv1_col_dx = CV1Compute->diff_x_col;
@@ -974,7 +974,7 @@ void FixMetaAR::restart(char * buf)
         error->warning(FLERR,"{},{},{},{}",i,CV1[i],CV2[i],biasHistory[i]);
       }
       error->warning(FLERR,"step,CV1Instant,CV2Instant");
-      for (int i = 0; i < CV1Instantsize; i++)
+      for (int i = 0; i < CV1instantSize; i++)
       {
         error->warning(FLERR,"{},{},{}",i,CV1Instant[i],CV2Instant[i]);
       }
