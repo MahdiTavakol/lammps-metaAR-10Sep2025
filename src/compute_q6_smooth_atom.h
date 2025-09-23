@@ -60,11 +60,6 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   // nmax X 3
   double **diff_q6_norm_pair;
 
-
-  int npair;
-  void update_npair();
-  void allocate_diff_pairs();
-  void deallocate_diff_pairs();
   
   // nmax;
   double* Ni;
@@ -74,20 +69,26 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   double** diff_Ni;
   // npairs X 3
   double*** diff_Ni_pair;
-  // nmax
-  double* gi;
+  // nmax X 13
+  double** gi_real, ** gi_imag;
   // nmax 
   double* Gi;
+  // nmaxX3
+  double** Ci;
   // nmax X 3
   double  **hj;
   // the flag for the comm_forward
   int forward_mode;
-
   // nmax 
   double *s0j, *s1j, *ds0j, *ds1j;
 
+  // Q6_ARRAY_SIZE * N_DIM
+  double** dqi_drj_real, **dqi_drj_imag;
 
-  // constant parameters 
+
+  // constant parameters
+  static constexpr int Q6_ARRAY_SIZE = 13;
+  static constexpr int N_DIM = 3; 
   static constexpr double Q6_coeff = 4.0*M_PI/13.0;
   static constexpr int nbnum_min = 4; 
   static constexpr int nbnum_col = 4;
@@ -103,7 +104,10 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   static constexpr double dist_coeffs[6] = {1.0,0.0,0.0,-10.0,15.0,-6.0}; 
   static void dist(const double& input, const double& cutoff, double& output, double& diff);
   static std::array<double,104> calculate_Y6m(const std::array<double,3>& dist);
-  static std::array<double,3> calculate_dq6i_dxj(const std::array<double,3>& dist, const double& inv_nbnum, const double& Q6_norm);
+  static void calculate_dq6i_drj(const std::array<double,N_DIM>& dist, 
+                                 const double*  q6m_real_i, const double* q6m_imag_j,
+                                 const double& inv_nbnum, const double& inv_q6_norm_i,
+                                 double** dqi_drj_real, double** dqi_drj_imag);
 
 
 };
