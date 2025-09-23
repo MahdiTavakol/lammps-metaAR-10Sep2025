@@ -102,6 +102,21 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
                                  const double*  q6m_real_i, const double* q6m_imag_i,
                                  const double& inv_nbnum, const double& inv_q6_norm_i,
                                  double** dqi_drj_real, double** dqi_drj_imag);
+   
+   
+   inline static double pow_fun(double s, int n) noexcept {
+      switch (n)
+      {
+         case 0: return 1.0;
+         case 1: return s;
+         case 2: return s*s;
+         case 3: return s*s*s;
+         case 4: return s*s*s*s;
+         case 5: return s*s*s*s*s;
+         case 6: return s*s*s*s*s*s;
+         default: return std::pow(s,n);
+      }
+   }
 
 
 };

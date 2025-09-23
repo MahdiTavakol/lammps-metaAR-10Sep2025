@@ -48,7 +48,7 @@ enum {
 };
 
 // parameter to avoid dead gradient issue.
-static constexpr min_diff = 0.02;
+static double constexpr min_diff = 0.02;
 
 /* ---------------------------------------------------------------------- */
 
@@ -404,10 +404,14 @@ void ComputeQ6SmoothAtom::compute_all()
     
     double Si = 0.0;
     //resetting neighbor variables
-    std::fill_n(s0j,nmax,0.0);
-    std::fill_n(s1j,nmax,0.0);
-    std::fill_n(ds0j,nmax,0.0);
-    std::fill_n(ds1j,nmax,0.0); 
+    /* Since we are assigning initial values to these instead of 
+     * accumulating it is safe to not zero them here but 
+     * they will have values from the previous atom.
+     * std::fill_n(s0j,jnum,0.0);
+     * std::fill_n(s1j,jnum,0.0);
+     * std::fill_n(ds0j,jnum,0.0);
+     * std::fill_n(ds1j,jnum,0.0); 
+     */
 
     /* Some tests -->>*/
     const double eps = 1e-8;
@@ -700,9 +704,9 @@ void ComputeQ6SmoothAtom::compute_all()
       for (jj = 0; jj < jnum; jj++) {
         j = jlist[jj];
         j &= NEIGHMASK;
-        double distx = x[i][0] - x[j][0];
-        double disty = x[i][1] - x[j][1];
-        double distz = x[i][2] - x[j][2];
+        double distx = x[j][0] - x[i][0];
+        double disty = x[j][1] - x[i][1];
+        double distz = x[j][2] - x[i][2];
         double r = sqrt(distx * distx + disty * disty + distz * distz);
         std::array<double,N_DIM> distance = {distx,disty,distz};
         if (r < 1e-8 ||  r >= cutoff) continue;
@@ -762,7 +766,7 @@ void ComputeQ6SmoothAtom::compute_all()
          {
            int k = jlist[kk];
            k &= NEIGHMASK;
-           if (k == i) continue;
+           if (k == j) continue;
            double distx = x[j][0] - x[k][0];
            double disty = x[j][1] - x[k][1];
            double distz = x[j][2] - x[k][2];
@@ -1052,7 +1056,7 @@ std::array<double,104> ComputeQ6SmoothAtom::calculate_Y6m(const std::array<doubl
   constexpr double eps = 1e-6;
 
   std::array<double, 104> Y6m;
-  std::fill_n(Y6m.begin(),Y6ms.end(),0.0);
+  std::fill_n(Y6m.begin(),Y6m.size(),0.0);
   if (r < eps || rxy < eps)
     return Y6m;
 
@@ -1093,12 +1097,12 @@ std::array<double,104> ComputeQ6SmoothAtom::calculate_Y6m(const std::array<doubl
   {
     auto sin_pow_theta = [&sin_theta](const int& n)
     {
-      return std::pow(sin_theta,n);
+      return pow_fun(sin_theta,n);
     };
   
     auto cos_pow_theta = [&cos_theta](const int& n)
     {
-      return std::pow(cos_theta,n);
+      return pow_fun(cos_theta,n);
     };
 
 
