@@ -117,6 +117,7 @@ void ComputeQ6SmoothAtom::init()
   memory->create(dqi_drj_real,Q6_ARRAY_SIZE,N_DIM,"compute_q6_smooth_atom:dqi_drj_real");
   memory->create(dqi_drj_imag,Q6_ARRAY_SIZE,N_DIM,"compute_q6_smooth_atom:dqi_drj_imag");
   request->cutoff = cutoff;
+  request->occasional = 0;
 }
 
 /* ----------------------------------------------------------------------- */
@@ -156,7 +157,7 @@ void ComputeQ6SmoothAtom::compute_all()
   int *mask = atom->mask;
 
 
-  neighbor->build_one(list);
+  //neighbor->build_one(list);
 
   if (atom->nmax > nmax)
   {
