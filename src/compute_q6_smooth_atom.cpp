@@ -156,7 +156,7 @@ void ComputeQ6SmoothAtom::compute_all()
   int *mask = atom->mask;
 
 
-  //neighbor->build_one(list);
+  neighbor->build_one(list);
 
   if (atom->nmax > nmax)
   {
