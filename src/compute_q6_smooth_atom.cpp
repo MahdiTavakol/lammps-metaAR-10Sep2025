@@ -72,7 +72,7 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
   cutoff = utils::numeric(FLERR, arg[4], false, lmp);
 
   // before calling the comm->forward this parameter is set since it has two different values.
-  comm_forward = 0;
+  comm_forward = Q6_STRIDE;
   comm_reverse = 3;
 
   int iarg=5;
@@ -117,7 +117,6 @@ void ComputeQ6SmoothAtom::init()
   memory->create(dqi_drj_real,Q6_ARRAY_SIZE,N_DIM,"compute_q6_smooth_atom:dqi_drj_real");
   memory->create(dqi_drj_imag,Q6_ARRAY_SIZE,N_DIM,"compute_q6_smooth_atom:dqi_drj_imag");
   request->cutoff = cutoff;
-  request->occasional = 0;
 }
 
 /* ----------------------------------------------------------------------- */
