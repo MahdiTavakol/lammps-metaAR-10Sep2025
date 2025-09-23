@@ -663,6 +663,7 @@ void ComputeQ6SmoothAtom::compute_all()
         double r = sqrt(distx * distx + disty * disty + distz * distz);
         if (r < 1e-8 ||  r >= cutoff) continue;
 
+        double s3val, ds3;
         dist(r,cutoff,s3val,ds3);
         phi_sum += Ni[i]*Ni[j]*s3val;
 
@@ -988,10 +989,6 @@ void ComputeQ6SmoothAtom::calculate_dq6i_drj(
   const double& inv_nbnum, const double& inv_q6_norm,
   double** dqi_drj_real, double** dqi_drj_imag) 
 {
-  double distx = dist[0];
-  double disty = dist[1];
-  double distz = dist[2];
-
   std::array<double,104> Y6m = calculate_Y6m(dist);
 
   /*
