@@ -47,6 +47,9 @@ enum {
   N_STRIDE = 1
 };
 
+// parameter to avoid dead gradient issue.
+static constexpr min_diff = 0.02;
+
 /* ---------------------------------------------------------------------- */
 
 ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
@@ -68,7 +71,8 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
   chosen_type = utils::numeric(FLERR, arg[3], false, lmp);
   cutoff = utils::numeric(FLERR, arg[4], false, lmp);
 
-  comm_forward = 104;
+  // before calling the comm->forward this parameter is set since it has two different values.
+  comm_forward = 0;
   comm_reverse = 3;
 
   int iarg=5;
@@ -206,20 +210,20 @@ void ComputeQ6SmoothAtom::compute_all()
   std::fill_n(&q6ms_imag[0][0],nmax*Q6_ARRAY_SIZE,0.0);
   std::fill_n(&diff_q6ms_real[0][0][0],nmax*Q6_ARRAY_SIZE*N_DIM,0.0);
   std::fill_n(&diff_q6ms_imag[0][0][0],nmax*Q6_ARRAY_SIZE*N_DIM,0.0);
-  std::fill_n(&inv_q6_norm_i[0],nmax,0.0);
-  std::fill_n(&inv_nbnum_i[0],nmax,0.0);
-  std::fill_n(&Ni[0],nmax,0.0);
-  std::fill_n(&ds2i[0],nmax,0.0);
+  std::fill_n(inv_q6_norm_i,nmax,0.0);
+  std::fill_n(inv_nbnum_i,nmax,0.0);
+  std::fill_n(Ni,nmax,0.0);
+  std::fill_n(ds2i,nmax,0.0);
   std::fill_n(&diff_Ni[0][0],nmax*N_DIM,0.0);
   std::fill_n(&gi_real[0][0],nmax*Q6_ARRAY_SIZE,0.0);
   std::fill_n(&gi_imag[0][0],nmax*Q6_ARRAY_SIZE,0.0);
-  std::fill_n(&Gi[0],nmax,0.0);
+  std::fill_n(Gi,nmax,0.0);
   std::fill_n(&Ci[0][0],nmax*N_DIM,0.0);
   std::fill_n(&hj[0][0],nmax*N_DIM,0.0);
-  std::fill_n(&s0j[0],nmax,0.0);
-  std::fill_n(&s1j[0],nmax,0.0);
-  std::fill_n(&ds0j[0],nmax,0.0);
-  std::fill_n(&ds1j[0],nmax,0.0);
+  std::fill_n(s0j,nmax,0.0);
+  std::fill_n(s1j,nmax,0.0);
+  std::fill_n(ds0j,nmax,0.0);
+  std::fill_n(ds1j,nmax,0.0);
 
 
 
@@ -303,12 +307,11 @@ void ComputeQ6SmoothAtom::compute_all()
 
     double q6_norm = 0.0;
     double diff_q6_norm[N_DIM] = {0.0,0.0,0.0};
-    for (jj = 0; jj < jnum; jj++) {
-      for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
-        q6_norm += q6ms_real[i][indx]*q6ms_real[i][indx]+q6ms_imag[i][indx]*q6ms_imag[i][indx];
-        for (int dim = 0; dim < N_DIM; dim++)
-          diff_q6_norm[dim] += q6ms_real[i][indx]*diff_q6ms_real[i][indx][dim] + q6ms_imag[i][indx]*diff_q6ms_imag[i][indx][dim];
-      }
+      
+    for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
+      q6_norm += q6ms_real[i][indx]*q6ms_real[i][indx]+q6ms_imag[i][indx]*q6ms_imag[i][indx];
+      for (int dim = 0; dim < N_DIM; dim++)
+        diff_q6_norm[dim] += q6ms_real[i][indx]*diff_q6ms_real[i][indx][dim] + q6ms_imag[i][indx]*diff_q6ms_imag[i][indx][dim];
     }
 
     q6_norm = std::sqrt(q6_norm);
@@ -400,6 +403,11 @@ void ComputeQ6SmoothAtom::compute_all()
     if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
     
     double Si = 0.0;
+    //resetting neighbor variables
+    std::fill_n(s0j,nmax,0.0);
+    std::fill_n(s1j,nmax,0.0);
+    std::fill_n(ds0j,nmax,0.0);
+    std::fill_n(ds1j,nmax,0.0); 
 
     /* Some tests -->>*/
     const double eps = 1e-8;
@@ -605,9 +613,9 @@ void ComputeQ6SmoothAtom::compute_all()
       array_atom[i][diff_y_col] += diff_y;
       array_atom[i][diff_z_col] += diff_z;
     } else if (mode & PHI_MODE) {
-      diff_Ni[i][diff_x_col] += diff_x;
-      diff_Ni[i][diff_y_col] += diff_y;
-      diff_Ni[i][diff_z_col] += diff_z;
+      diff_Ni[i][0] += diff_x;
+      diff_Ni[i][1] += diff_y;
+      diff_Ni[i][2] += diff_z;
     }
   }
 
@@ -830,7 +838,7 @@ void ComputeQ6SmoothAtom::compute_all()
   MPI_Allreduce(&num_selected, &num_selected_all, 1, MPI_INT, MPI_SUM, world);
 
   double num_double = static_cast<double>(num_selected_all);
-  double scaling = 2.0/(num_double*(num_double-1.0));
+  double scaling = num_double >= 2 ? 2.0/(num_double*(num_double-1.0)) : 0.0;
   for (ii = 0; ii < inum; ii++)
   {
     i = ilist[ii];
@@ -946,14 +954,10 @@ void ComputeQ6SmoothAtom::orient(const double& input, const double& beta, const 
 {
     output = 1.0/(1.0+std::exp(-beta*(input-x0)));
     diff = beta*output*(1.0-output);
-    if (diff <= 0.02)
-    {
-      if (output < x0) {
-        diff = 0.02;
-      } else if (output > x0) {
-        diff = -0.02;
-      }
-    }
+
+    // avoiding dead gradient
+    if (std::abs(diff) <= min_diff)
+      diff = output >= x0 ? min_diff : -min_diff;
 }
 
 /* --------------------------------------------------------------------- */
@@ -976,6 +980,12 @@ void ComputeQ6SmoothAtom::dist(const double& input, const double& cutoff, double
       diff += i*coeff[i]*pow(x,i-1);
     }
   }
+  // The chain rule
+  diff *= 1.0/(cutoff-r0);
+  
+  // avoiding dead gradient
+  if (std::abs(diff) <= min_diff)
+    diff = x < 0.5 ? min_diff : -min_diff;
 }
 
 /* ---------------------------------------------------------------------
@@ -1014,9 +1024,7 @@ void ComputeQ6SmoothAtom::calculate_dq6i_drj(
     for (int dim = 0; dim < N_DIM; dim++)
       dq_norm_drj[dim] += dqi_drj_real[indx][dim]*q6m_real_i[indx] + dqi_drj_imag[indx][dim]*q6m_imag_i[indx];
   }
-  for (int dim= 0; dim < N_DIM; dim++) {
-    dq_norm_drj[dim] *= inv_q6_norm;
-  }
+
 
   for (int indx = 0; indx< Q6_ARRAY_SIZE; indx++) {
     for (int dim = 0; dim < N_DIM; dim++) {
@@ -1041,8 +1049,13 @@ std::array<double,104> ComputeQ6SmoothAtom::calculate_Y6m(const std::array<doubl
 
   double r = std::sqrt(x*x + y*y + z*z);
   double rxy = std::sqrt(x*x + y*y);
-
   constexpr double eps = 1e-6;
+
+  std::array<double, 104> Y6m;
+  std::fill_n(Y6m.begin(),Y6ms.end(),0.0);
+  if (r < eps || rxy < eps)
+    return Y6m;
+
 
   double theta = std::acos(z / r);
   double phi = std::atan2(y, x);  // Accurate azimuthal angle
@@ -1058,20 +1071,10 @@ std::array<double,104> ComputeQ6SmoothAtom::calculate_Y6m(const std::array<doubl
   double dphi_dy =  x / (rxy*rxy);
   double dphi_dz = 0.0;
 
-  if (r < eps || rxy < eps) {
-    theta = 0.0;
-    phi = 0.0;
-    dtheta_dx = 0.0;
-    dtheta_dy = 0.0;
-    dtheta_dz = 0.0;
-    dphi_dx = 0.0;
-    dphi_dy = 0.0;
-    dphi_dz = 0.0;
-  }
 
   std::array<double,3> dtheta = {dtheta_dx, dtheta_dy, dtheta_dz};
   std::array<double,3> dphi   = {dphi_dx, dphi_dy, dphi_dz};
-  std::array<double, 104> Y6m = {0.0};
+  
 
 
   double coeff = 0.0;
