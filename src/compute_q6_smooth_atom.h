@@ -33,9 +33,9 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   ~ComputeQ6SmoothAtom();
   void init() override;
   void compute_all() override;
-  virtual int pack_forward_comm(int , int*, double *, int, int*) override;
+  virtual int pack_forward_comm(int, int *, double *, int, int *) override;
   virtual int pack_reverse_comm(int n, int first, double *buf) override;
-  virtual void unpack_forward_comm(int, int , double *) override;
+  virtual void unpack_forward_comm(int, int, double *) override;
   virtual void unpack_reverse_comm(int n, int *list, double *buf) override;
 
  private:
@@ -45,83 +45,94 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
 
   // the real part of q6ms for each atom
   // nmax X 13
-  double** q6ms_real;
+  double **q6ms_real;
   // the imaginary part of q6ms for each atom
   // nmax X 13
-  double** q6ms_imag;
+  double **q6ms_imag;
   // nmax X 13 X 3
   double ***diff_q6ms_real, ***diff_q6ms_imag;
   // nmax
-  double* inv_q6_norm_i;
+  double *inv_q6_norm_i;
   // nmax
-  double* inv_nbnum_i;
+  double *inv_nbnum_i;
 
-  
   // nmax;
-  double* Ni;
+  double *Ni;
   // nmax
-  double* ds2i;
+  double *ds2i;
   // nmax X 3
-  double** diff_Ni;
+  double **diff_Ni;
   // nmax X 13
-  double** gi_real, ** gi_imag;
-  // nmax 
-  double* Gi;
+  double **gi_real, **gi_imag;
+  // nmax
+  double *Gi;
   // nmaxX3
-  double** Ci;
+  double **Ci;
   // nmax X 3
-  double  **hj;
+  double **hj;
   // the flag for the comm_forward
   int forward_mode;
-  // nmax 
+  // nmax
   double *s0j, *s1j, *ds0j, *ds1j;
 
   // Q6_ARRAY_SIZE * N_DIM
-  double** dqi_drj_real, **dqi_drj_imag;
+  double **dqi_drj_real, **dqi_drj_imag;
 
   // Random number generation object
   std::unique_ptr<RanPark> rng;
 
-
   // constant parameters
   static constexpr int Q6_ARRAY_SIZE = 13;
-  static constexpr int N_DIM = 3; 
-  static constexpr double Q6_coeff = 4.0*M_PI/13.0;
-  static constexpr int nbnum_min = 4; 
+  static constexpr int N_DIM = 3;
+  static constexpr double Q6_coeff = 4.0 * M_PI / 13.0;
+  static constexpr int nbnum_min = 4;
   static constexpr int nbnum_col = 4;
   static constexpr int second_val_col = 5;
 
   // helper functions
-  double beta1 = 25.0; //8.0;
-  double x01 = 0.65; //0.5;
+  double beta1 = 25.0;    //8.0;
+  double x01 = 0.65;      //0.5;
   double beta2 = 7.0;
   double x02 = 2.5;
-  static void orient(const double& input, const double& beta, const double& x0, double& output, double& diff);
+  static void orient(const double &input, const double &beta, const double &x0, double &output,
+                     double &diff);
+
   static constexpr int dist_deg = 6;
-  static constexpr double dist_coeffs[6] = {1.0,0.0,0.0,-10.0,15.0,-6.0}; 
-  static void dist(const double& input, const double& cutoff, double& output, double& diff);
-  static std::array<double,104> calculate_Y6m(const std::array<double,3>& dist);
-  static void calculate_dq6i_drj(const std::array<double,N_DIM>& dist, 
-                                 const double*  q6m_real_i, const double* q6m_imag_i,
-                                 const double& inv_nbnum, const double& inv_q6_norm_i,
-                                 double** dqi_drj_real, double** dqi_drj_imag);
-   
-   
-   inline static double pow_fun(double s, int n) noexcept {
-      switch (n)
-      {
-         case 0: return 1.0;
-         case 1: return s;
-         case 2: return s*s;
-         case 3: return s*s*s;
-         case 4: return s*s*s*s;
-         case 5: return s*s*s*s*s;
-         case 6: return s*s*s*s*s*s;
-         default: return std::pow(s,n);
-      }
-   }
+  static constexpr double dist_coeffs[6] = {1.0, 0.0, 0.0, -10.0, 15.0, -6.0};
+  static void dist(const double &input, const double &cutoff, double &output, double &diff);
 
+  // Just for debugging.
+  static void equal(const double &input, const double &cutoff, double &output, double &diff);
 
+  static std::array<double, 104> calculate_Y6m(const std::array<double, 3> &dist);
+  static void calculate_dq6i_drj(const std::array<double, N_DIM> &dist, const double *q6m_real_i,
+                                 const double *q6m_imag_i, const double &inv_nbnum,
+                                 const double &inv_q6_norm_i, double **dqi_drj_real,
+                                 double **dqi_drj_imag);
+
+  inline static double pow_fun(double s, int n) noexcept
+  {
+    switch (n) {
+      case 0:
+        return 1.0;
+      case 1:
+        return s;
+      case 2:
+        return s * s;
+      case 3:
+        return s * s * s;
+      case 4:
+        return s * s * s * s;
+      case 5:
+        return s * s * s * s * s;
+      case 6:
+        return s * s * s * s * s * s;
+      case 7:
+        return s * s * s * s * s * s * s;
+      default:
+        return std::pow(s, n);
+    }
+  }
 };
 
 }    // namespace LAMMPS_NS
