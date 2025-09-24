@@ -79,6 +79,9 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   // Q6_ARRAY_SIZE * N_DIM
   double** dqi_drj_real, **dqi_drj_imag;
 
+  // Random number generation object
+  std::unique_ptr<RanPark> rng;
+
 
   // constant parameters
   static constexpr int Q6_ARRAY_SIZE = 13;
