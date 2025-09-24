@@ -112,26 +112,42 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
 
   inline static double pow_fun(double s, int n) noexcept
   {
+    if (n < 0)
+      return (x == 0) ? std::numeric_limits<double>::infinity() : 1.0 / powi_fast_upto6(x, -n);
+    double out = 1.0;
     switch (n) {
-      case 0:
-        return 1.0;
-      case 1:
-        return s;
-      case 2:
-        return s * s;
-      case 3:
-        return s * s * s;
-      case 4:
-        return s * s * s * s;
-      case 5:
-        return s * s * s * s * s;
       case 6:
-        return s * s * s * s * s * s;
-      case 7:
-        return s * s * s * s * s * s * s;
-      default:
-        return std::pow(s, n);
+        out *= x;
+        [[fallthrough]];
+      case 5:
+        out *= x;
+        [[fallthrough]];
+      case 4:
+        out *= x;
+        [[fallthrough]];
+      case 3:
+        out *= x;
+        [[fallthrough]];
+      case 2:
+        out *= x;
+        [[fallthrough]];
+      case 1:
+        out *= x;
+        [[fallthrough]];
+      case 0:
+        return out;
+      default:;    // fall back below if n>6
     }
+    // Fallback for bigger n: exponentiation by squaring (O(log n))
+    double r = out, b = x;
+    unsigned k = static_cast<unsigned>(n);
+    r = 1.0;
+    while (k) {
+      if (k & 1) r *= b;
+      b *= b;
+      k >>= 1;
+    }
+    return r;
   }
 };
 

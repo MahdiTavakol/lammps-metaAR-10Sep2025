@@ -883,7 +883,6 @@ void ComputeQ6SmoothAtom::compute_all()
     array_atom[i][diff_x_col] *= scaling;
     array_atom[i][diff_y_col] *= scaling;
     array_atom[i][diff_z_col] *= scaling;
-
     double x_comp = array_atom[i][diff_x_col];
     double y_comp = array_atom[i][diff_y_col];
     double z_comp = array_atom[i][diff_z_col];
