@@ -66,8 +66,8 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   double **gi_real, **gi_imag;
   // nmax
   double *Gi;
-  // nmaxX3
-  double **Ci;
+  // nmax
+  double *Cjj;
   // nmax X 3
   double **hj;
   // the flag for the comm_forward
@@ -112,8 +112,6 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
 
   inline static double pow_fun(double s, int n) noexcept
   {
-    if (n < 0)
-      return (x == 0) ? std::numeric_limits<double>::infinity() : 1.0 / powi_fast_upto6(x, -n);
     double out = 1.0;
     switch (n) {
       case 6:

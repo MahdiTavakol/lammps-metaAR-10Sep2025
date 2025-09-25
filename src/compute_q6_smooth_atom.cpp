@@ -499,7 +499,7 @@ void ComputeQ6SmoothAtom::compute_all()
       const double r = sqrt(distx * distx + disty * disty + distz * distz);
       if (r < 1e-8 || r >= cutoff) continue;
 
-      const double wpair = ds2 * s0j[j] * ds1j[j];
+      const double wpair  = ds2 * s0j[j] * ds1j[j];
       const double wpair2 = ds2 * s1j[j] * ds0j[j];
 
       for (int indx = 0; indx < Q6_ARRAY_SIZE; ++indx) { 
@@ -666,7 +666,6 @@ void ComputeQ6SmoothAtom::compute_all()
     /*
      * step 0
      */
-
     forward_mode = N_TRANSFER;
     comm_forward = N_STRIDE;
     comm->forward_comm(this);
