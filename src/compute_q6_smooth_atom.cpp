@@ -784,14 +784,14 @@ void ComputeQ6SmoothAtom::compute_all()
         for (int dim = 0; dim < N_DIM; dim++) {
           qjdqi_dri[dim] = 0.0;
           for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
-            qjdqi_dri[dim] = diff_q6ms_real[i][indx][dim] * q6ms_real[j][indx] +
+            qjdqi_dri[dim] += diff_q6ms_real[i][indx][dim] * q6ms_real[j][indx] +
                 diff_q6ms_imag[i][indx][dim] * q6ms_imag[j][indx];
           }
         }
 
-        array_atom[i][diff_x_col] = 2.0 * wpair * qjdqi_dri[0];
-        array_atom[i][diff_y_col] = 2.0 * wpair * qjdqi_dri[1];
-        array_atom[i][diff_z_col] = 2.0 * wpair * qjdqi_dri[2];
+        array_atom[i][diff_x_col] += 2.0 * wpair * qjdqi_dri[0];
+        array_atom[i][diff_y_col] += 2.0 * wpair * qjdqi_dri[1];
+        array_atom[i][diff_z_col] += 2.0 * wpair * qjdqi_dri[2];
 
         /*
          * step 5B
@@ -936,10 +936,12 @@ void ComputeQ6SmoothAtom::compute_all()
     double y_comp = array_atom[i][diff_y_col];
     double z_comp = array_atom[i][diff_z_col];
     double slope = std::sqrt(x_comp * x_comp + y_comp * y_comp + z_comp * z_comp);
-    if (slope < min_slope) {
-      array_atom[i][diff_x_col] = min_slope * (rng->gaussian()-0.5);
-      array_atom[i][diff_y_col] = min_slope * (rng->gaussian()-0.5);
-      array_atom[i][diff_z_col] = min_slope * (rng->gaussian()-0.5);
+    double random_slope = rng->gaussian()*min_slope;
+    if (slope > 0 && slope < min_slope) {
+      double s = random_slope / slope;
+      array_atom[i][diff_x_col] = x_comp*random_slope;
+      array_atom[i][diff_y_col] = y_comp*random_slope;
+      array_atom[i][diff_z_col] = z_comp*random_slope;
     }
   }
 
@@ -1166,6 +1168,11 @@ std::array<double, 104> ComputeQ6SmoothAtom::calculate_Y6m(const std::array<doub
   double sin_theta = std::sin(theta);
   double cos_theta = std::cos(theta);
 
+  const double ct = z / r;                // cos(theta)
+  const double st = std::sqrt(std::max(0.0, 1.0 - ct*ct)); // sin(theta), robust to FP
+  const double c1 = x / rxy;              // cos(phi)
+  const double s1 = y / rxy;              // sin(phi)
+
   double dtheta_dx = (x * z) / (r * r * rxy);
   double dtheta_dy = (y * z) / (r * r * rxy);
   double dtheta_dz = -rxy / (r * r);
@@ -1174,113 +1181,123 @@ std::array<double, 104> ComputeQ6SmoothAtom::calculate_Y6m(const std::array<doub
   double dphi_dy = x / (rxy * rxy);
   double dphi_dz = 0.0;
 
-  std::array<double, 3> dtheta = {dtheta_dx, dtheta_dy, dtheta_dz};
-  std::array<double, 3> dphi = {dphi_dx, dphi_dy, dphi_dz};
 
-  double coeff = 0.0;
-  double Re = 0.0, Im = 0.0;
-  double dRe_dtheta = 0.0, dIm_dtheta = 0.0;
-  double dRe_dphi = 0.0, dIm_dphi = 0.0;
-
-  auto calc_params = [&Re, &Im, &dRe_dtheta, &dIm_dtheta, &dRe_dphi, &dIm_dphi, &coeff, phi,
-                      sin_theta, cos_theta](const int &deg) {
-    auto sin_pow_theta = [&sin_theta](const int &n) {
-      return pow_fun(sin_theta, n);
-    };
-
-    auto cos_pow_theta = [&cos_theta](const int &n) {
-      return pow_fun(cos_theta, n);
-    };
-
-    double sin_m_phi = std::sin(deg * phi);
-    double cos_m_phi = std::cos(deg * phi);
-    double sign = (deg < 0) ? -1.0 : 1.0;
-
-    double first_theta = sin_pow_theta(std::abs(deg));
-    double diff_first_theta = std::abs(deg) * sin_pow_theta(std::abs(deg) - 1) * cos_theta;
-
-    double second_theta;
-    double diff_second_theta;
-
-    switch (deg) {
-      case -6:
-      case 6:
-        coeff = (1.0 / 64.0) * std::sqrt(3003.0 / M_PI);
-        second_theta = 1.0;
-        diff_second_theta = 0.0;
-        break;
-
-      case -5:
-      case 5:
-        coeff = -sign * (3.0 / 32.0) * std::sqrt(1001.0 / M_PI);
-        second_theta = cos_theta;
-        diff_second_theta = -sin_theta;
-        break;
-
-      case -4:
-      case 4:
-        coeff = (3.0 / 32.0) * std::sqrt(91.0 / (2 * M_PI));
-        second_theta = 11 * cos_pow_theta(2) - 1;
-        diff_second_theta = -sin_theta * 2 * 11 * cos_theta;
-        break;
-
-      case -3:
-      case 3:
-        coeff = -sign * (1.0 / 32.0) * std::sqrt(1365.0 / M_PI);
-        second_theta = 11 * cos_pow_theta(3) - 3 * cos_theta;
-        diff_second_theta = -sin_theta * (11 * 3 * cos_pow_theta(2) - 3);
-        break;
-
-      case -2:
-      case 2:
-        coeff = (1.0 / 64.0) * std::sqrt(1365.0 / M_PI);
-        second_theta = 33 * cos_pow_theta(4) - 18 * cos_pow_theta(2) + 1;
-        diff_second_theta = -sin_theta * (4 * 33 * cos_pow_theta(3) - 2 * 18 * cos_theta);
-        break;
-
-      case -1:
-      case 1:
-        coeff = -sign * (1.0 / 16.0) * std::sqrt(273.0 / (2.0 * M_PI));
-        second_theta = 33 * cos_pow_theta(5) - 30 * cos_pow_theta(3) + 5 * cos_theta;
-        diff_second_theta =
-            -sin_theta * (33 * 5 * cos_pow_theta(4) - 30 * 3 * cos_pow_theta(2) + 5);
-        break;
-
-      case 0:
-        coeff = (1.0 / 32.0) * std::sqrt(13.0 / M_PI);
-        second_theta =
-            231.0 * cos_pow_theta(6) - 315.0 * cos_pow_theta(4) + 105.0 * cos_pow_theta(2) - 5.0;
-        diff_second_theta = -sin_theta *
-            (231 * 6 * cos_pow_theta(5) - 315 * 4 * cos_pow_theta(3) + 105 * 2 * cos_theta);
-        break;
-
-      default:
-        throw std::invalid_argument("m must be between -6 and +6");
-    }
-
-    Re = coeff * cos_m_phi * first_theta * second_theta;
-    Im = coeff * sin_m_phi * first_theta * second_theta;
-    dRe_dtheta =
-        coeff * cos_m_phi * (first_theta * diff_second_theta + second_theta * diff_first_theta);
-    dIm_dtheta =
-        coeff * sin_m_phi * (first_theta * diff_second_theta + second_theta * diff_first_theta);
-    dRe_dphi = -coeff * deg * sin_m_phi * first_theta * second_theta;
-    dIm_dphi = coeff * deg * cos_m_phi * first_theta * second_theta;
-  };
-
-  // Coefficients and angular dependencies for all m
-  for (int deg = -6; deg <= 6; deg++) {
-    calc_params(deg);
-    int offset = (deg + 6) * 8;
-    Y6m[offset + 0] = Re;
-    Y6m[offset + 1] = Im;
-    Y6m[offset + 2] = dRe_dtheta * dtheta[0] + dRe_dphi * dphi[0];
-    Y6m[offset + 3] = dIm_dtheta * dtheta[0] + dIm_dphi * dphi[0];
-    Y6m[offset + 4] = dRe_dtheta * dtheta[1] + dRe_dphi * dphi[1];
-    Y6m[offset + 5] = dIm_dtheta * dtheta[1] + dIm_dphi * dphi[1];
-    Y6m[offset + 6] = dRe_dtheta * dtheta[2] + dRe_dphi * dphi[2];
-    Y6m[offset + 7] = dIm_dtheta * dtheta[2] + dIm_dphi * dphi[2];
+  // Precompute sin(m*phi), cos(m*phi) for m=0..6 via recurrence
+  double c[7], s[7];
+  c[0]=1.0; s[0]=0.0;
+  c[1]=c1;  s[1]=s1;
+  for (int m=2; m<=6; ++m) {
+    c[m] = c1*c[m-1] - s1*s[m-1];
+    s[m] = s1*c[m-1] + c1*s[m-1];
   }
-
-  return Y6m;
+  
+  // Precompute sin^m(theta) and cos^m(theta)
+  double st_pow[7]; st_pow[0]=1.0;
+  for (int m=1; m<=6; ++m) st_pow[m] = st_pow[m-1]*st;
+  double ct_pow[7]; ct_pow[0]=1.0;
+  for (int k=1; k<=6; ++k) ct_pow[k] = ct_pow[k-1]*ct;
+  
+  // Coefficient magnitudes for m=0..6 (Condon–Shortley phase handled below)
+  const double C0 = (1.0/32.0)*std::sqrt(13.0/M_PI);
+  const double C1 = (1.0/16.0)*std::sqrt(273.0/(2.0*M_PI));
+  const double C2 = (1.0/64.0)*std::sqrt(1365.0/M_PI);
+  const double C3 = (1.0/32.0)*std::sqrt(1365.0/M_PI);
+  const double C4 = (3.0/32.0)*std::sqrt(91.0/(2.0*M_PI));
+  const double C5 = (3.0/32.0)*std::sqrt(1001.0/M_PI);
+  const double C6 = (1.0/64.0)*std::sqrt(3003.0/M_PI);
+  
+  // Helper to write a single deg = ±m slot
+  auto emit = [&](int deg, double coeff, double first, double dfirst,
+                    double second, double dsecond, double cos_mphi, double sin_mphi)
+  {
+    const int   off = (deg + 6) * 8;
+    const double Re = coeff * cos_mphi * first * second;
+    const double Im = coeff * sin_mphi * first * second;
+  
+    const double dRe_dtheta = coeff * cos_mphi * (first*dsecond + second*dfirst);
+    const double dIm_dtheta = coeff * sin_mphi * (first*dsecond + second*dfirst);
+    const double dRe_dphi   = -coeff * deg * sin_mphi * first * second;
+    const double dIm_dphi   =  coeff * deg * cos_mphi * first * second;
+  
+    Y6m[off + 0] = Re;
+    Y6m[off + 1] = Im;
+    Y6m[off + 2] = dRe_dtheta * dtheta_dx + dRe_dphi * dphi_dx;
+    Y6m[off + 3] = dIm_dtheta * dtheta_dx + dIm_dphi * dphi_dx;
+    Y6m[off + 4] = dRe_dtheta * dtheta_dy + dRe_dphi * dphi_dy;
+    Y6m[off + 5] = dIm_dtheta * dtheta_dy + dIm_dphi * dphi_dy;
+    Y6m[off + 6] = dRe_dtheta * dtheta_dz + dRe_dphi * dphi_dz;
+    Y6m[off + 7] = dIm_dtheta * dtheta_dz + dIm_dphi * dphi_dz;
+  };
+  
+  // Handy lambda to push both +m and -m, applying the odd-m sign flip (Condon–Shortley).
+  auto emit_pair = [&](int m, double C,
+                         double second, double dsecond)
+  {
+    // first_theta and d/dθ
+    const double first  = st_pow[m];
+    const double dfirst = (m==0) ? 0.0 : m * st_pow[m-1] * ct;
+  
+    // +m: coeff = base * (odd ? -1 : +1)
+    double coeff_p = ((m & 1) ? -C : +C);
+    emit(+m, coeff_p, first, dfirst, second, dsecond, c[m], +s[m]);
+  
+    // -m: coeff = base * (odd ? +1 : +1)  (i.e., flip for odd m)
+    double coeff_m = ((m & 1) ? +C : +C);
+    emit(-m, coeff_m, first, dfirst, second, dsecond, c[m], -s[m]);
+  };
+  
+  // m = 0
+  {
+    const int   m = 0;
+    const double first  = 1.0;
+    const double dfirst = 0.0;
+    const double second =
+        231.0*ct_pow[6] - 315.0*ct_pow[4] + 105.0*ct_pow[2] - 5.0;
+    const double dsecond =
+        -st * (231.0*6.0*ct_pow[5] - 315.0*4.0*ct_pow[3] + 105.0*2.0*ct_pow[1]);
+  
+    emit(0, C0, first, dfirst, second, dsecond, 1.0, 0.0); // cos(0φ)=1, sin(0φ)=0
+  }
+  
+  // m = 1
+  {
+    const double second   = 33.0*ct_pow[5] - 30.0*ct_pow[3] + 5.0*ct;
+    const double dsecond  = -st*(33.0*5.0*ct_pow[4] - 30.0*3.0*ct_pow[2] + 5.0);
+    emit_pair(1, C1, second, dsecond);
+  }
+  
+  // m = 2
+  {
+    const double second   = 33.0*ct_pow[4] - 18.0*ct_pow[2] + 1.0;
+    const double dsecond  = -st*(4.0*33.0*ct_pow[3] - 2.0*18.0*ct);
+    emit_pair(2, C2, second, dsecond);
+  }
+  
+  // m = 3
+  {
+    const double second   = 11.0*ct_pow[3] - 3.0*ct;
+    const double dsecond  = -st*(11.0*3.0*ct_pow[2] - 3.0);
+    emit_pair(3, C3, second, dsecond);
+  }
+  
+  // m = 4
+  {
+    const double second   = 11.0*ct_pow[2] - 1.0;
+    const double dsecond  = -st*(2.0*11.0*ct);
+    emit_pair(4, C4, second, dsecond);
+  }
+  
+  // m = 5
+  {
+    const double second   = ct;
+    const double dsecond  = -st;
+    emit_pair(5, C5, second, dsecond);
+  }
+  
+  // m = 6
+  {
+    const double second   = 1.0;
+    const double dsecond  = 0.0;
+    emit_pair(6, C6, second, dsecond);
+  }
 }
