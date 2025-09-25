@@ -32,11 +32,11 @@
 
 using namespace LAMMPS_NS;
 
-enum { Q6_TRANSFER = 1 << 1, N_TRANSFER = 1 << 2 };
+enum { Q6_TRANSFER = 1 << 1, N_TRANSFER = 1 << 2, G_TRANSFER = 1 << 3 };
 
 enum { N_MODE = 0, PHI_MODE = 1 << 1 };
 
-enum { Q6_STRIDE = 26, N_STRIDE = 1 };
+enum { Q6_STRIDE = 26, N_STRIDE = 1, G_STRIDE = 1 };
 
 // parameter to avoid dead gradient issue.
 static double constexpr min_slope = 0.02;
@@ -47,7 +47,7 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
     ComputeDiffAtom{lmp, narg, arg}, mode{N_MODE}, chosen_type{-1}, cutoff{3.2}, q6ms_real{nullptr},
     q6ms_imag{nullptr}, diff_q6ms_real{nullptr}, diff_q6ms_imag{nullptr}, inv_q6_norm_i{nullptr},
     inv_nbnum_i{nullptr}, Ni{nullptr}, ds2i{nullptr}, diff_Ni{nullptr}, gi_real{nullptr},
-    gi_imag{nullptr}, Gi{nullptr}, Ci{nullptr}, hj{nullptr}, forward_mode{Q6_TRANSFER},
+    gi_imag{nullptr}, Gi{nullptr}, Cjj{nullptr}, hj{nullptr}, forward_mode{Q6_TRANSFER},
     s0j{nullptr}, s1j{nullptr}, ds0j{nullptr}, ds1j{nullptr}, dqi_drj_real{nullptr}, dqi_drj_imag{
                                                                                          nullptr}
 {
@@ -94,7 +94,7 @@ void ComputeQ6SmoothAtom::init()
   memory->create(gi_real, nmax, Q6_ARRAY_SIZE, "compute_q6_smooth_atom:gi_real");
   memory->create(gi_imag, nmax, Q6_ARRAY_SIZE, "compute_q6_smooth_atom:gi_imag");
   memory->create(Gi, nmax, "compute_q6_smooth_atom:Gi");
-  memory->create(Ci, nmax, N_DIM, "compute_q6_smooth_atom:Ci");
+  memory->create(Cjj, nmax, "compute_q6_smooth_atom:Cjj");
   memory->create(hj, nmax, N_DIM, "compute_q6_smooth_atom:hj");
   memory->create(s0j, nmax, "compute_q6_smooth_atom:s0j");
   memory->create(s1j, nmax, "compute_q6_smooth_atom:s1j");
@@ -125,7 +125,7 @@ ComputeQ6SmoothAtom::~ComputeQ6SmoothAtom()
   if (gi_real) memory->destroy(gi_real);
   if (gi_imag) memory->destroy(gi_imag);
   if (Gi) memory->destroy(Gi);
-  if (Ci) memory->destroy(Ci);
+  if (Cjj) memory->destroy(Cjj);
   if (hj) memory->destroy(hj);
   if (s0j) memory->destroy(s0j);
   if (s1j) memory->destroy(s1j);
@@ -164,7 +164,7 @@ void ComputeQ6SmoothAtom::compute_all()
     memory->grow(gi_real, nmax, Q6_ARRAY_SIZE, "compute_q6_smooth_atom:gi_real");
     memory->grow(gi_imag, nmax, Q6_ARRAY_SIZE, "compute_q6_smooth_atom:gi_imag");
     memory->grow(Gi, nmax, "compute_q6_smooth_atom:Gi");
-    memory->grow(Ci, nmax, N_DIM, "compute_q6_smooth_atom:Ci");
+    memory->grow(Cjj, nmax, "compute_q6_smooth_atom:Cjj");
     memory->grow(hj, nmax, N_DIM, "compute_q6_smooth_atom:hj");
     memory->grow(s0j, nmax, "compute_q6_smooth_atom:s0j");
     memory->grow(s1j, nmax, "compute_q6_smooth_atom:s1j");
@@ -195,20 +195,28 @@ void ComputeQ6SmoothAtom::compute_all()
   std::fill_n(&q6ms_imag[0][0], nmax * Q6_ARRAY_SIZE, 0.0);
   std::fill_n(&diff_q6ms_real[0][0][0], nmax * Q6_ARRAY_SIZE * N_DIM, 0.0);
   std::fill_n(&diff_q6ms_imag[0][0][0], nmax * Q6_ARRAY_SIZE * N_DIM, 0.0);
+  std::fill_n(&gi_real[0][0], nmax * Q6_ARRAY_SIZE, 0.0);
+  std::fill_n(&gi_imag[0][0], nmax * Q6_ARRAY_SIZE, 0.0);
+  std::fill_n(&diff_Ni[0][0], nmax * N_DIM, 0.0);
+  std::fill_n(Gi, nmax, 0.0);
+  std::fill_n(&hj[0][0], nmax * N_DIM, 0.0);
+
+  /*
+   These variables either do not accumulate values
+   or they for the first time used with = sign
+   so zeroing them is not needed.
+   As their size is pretty large zeroing them might 
+   have an overhead.
   std::fill_n(inv_q6_norm_i, nmax, 0.0);
   std::fill_n(inv_nbnum_i, nmax, 0.0);
   std::fill_n(Ni, nmax, 0.0);
   std::fill_n(ds2i, nmax, 0.0);
-  std::fill_n(&diff_Ni[0][0], nmax * N_DIM, 0.0);
-  std::fill_n(&gi_real[0][0], nmax * Q6_ARRAY_SIZE, 0.0);
-  std::fill_n(&gi_imag[0][0], nmax * Q6_ARRAY_SIZE, 0.0);
-  std::fill_n(Gi, nmax, 0.0);
-  std::fill_n(&Ci[0][0], nmax * N_DIM, 0.0);
-  std::fill_n(&hj[0][0], nmax * N_DIM, 0.0);
+  std::fill_n(Cjj, nmax, 0.0);
   std::fill_n(s0j, nmax, 0.0);
   std::fill_n(s1j, nmax, 0.0);
   std::fill_n(ds0j, nmax, 0.0);
   std::fill_n(ds1j, nmax, 0.0);
+  */
 
   // lambda functions
   auto s1 = [&](const double &input, double &output, double &diff) {
@@ -263,7 +271,6 @@ void ComputeQ6SmoothAtom::compute_all()
         int indx = deg + 6;
         q6ms_real[i][indx] += Y6m[offset + 0];
         q6ms_imag[i][indx] += Y6m[offset + 1];
-
         diff_q6ms_real[i][indx][0] += Y6m[offset + 2];
         diff_q6ms_imag[i][indx][0] += Y6m[offset + 3];
         diff_q6ms_real[i][indx][1] += Y6m[offset + 4];
@@ -326,14 +333,15 @@ void ComputeQ6SmoothAtom::compute_all()
   // forward_comm the q6ms_real, q6ms_imag, diff_q6ms_real and diff_q6ms_imag to ghost atoms
   forward_mode = Q6_TRANSFER;
   comm_forward = Q6_STRIDE;
-
   comm->forward_comm(this);
 
   /*
-   * This part calculates the contribution of the atom i to the differential with all the rj values. 
-   * (1)  PHI_MODE: N_total = sigma(wij*qi*qj)
-   *      gi = sigma(wij*qj)
-   *      dN_total/drk = sigma(wij*qj*dqi/drk +wij*qi*dqj/drk) = gi*dqi/drk + gj*dqj/drk
+   * This part calculates the contribution of the atom i to the the differential of N_total [Ni]
+   *  with respect to ri and also diff of N_total [Nj] with respect to rj (self diffs)
+   * (1)  N_MODE: N_total = sigma(wij*qi*qj)
+   *      gi = sigma(wij*qj) --> N_total = sigma(qi*qi)
+   *      dN_total/drk = sigma(wij*qj*dqi/drk +wij*qi*dqj/drk) = sigma(gi*dqi/drk + gj*dqj/drk)
+   *                   = 2.0*sigma(gi*dqi/drk)
    *      Thanks to the forward comm we have the qj for the ghost atoms in this rank so 
    *      we can easily calculate the gi = sigma(wij*qj) over j.
    *      However, we do not have the gj and dgj/drk and it does not make sense to transfer the diff of qj with
@@ -341,8 +349,10 @@ void ComputeQ6SmoothAtom::compute_all()
    *      So, here we define hj = sigma (gi*dqi/rj over i), each rank adds its own contribution to the hj.
    *      Since the hj can be a ghost atom it has to be reverse communicated and added to the hj on the current rank.
    *      Then we go through every owned atom and add hj[i] to every diff.
-   * (2)  N_MODE: Ni = qi*(wij sigmaqj) = qi*gi
-   *      the Ni also contributes to j and for the same reason we need hj.. but hj = wij*qj*dqi/drj
+   * (2)  PHI_MODE: Ni = qi*(wij sigmaqj) = qi*gi
+   *      dNi/dri = dqi/dri * gi + qi* (sigma dqj/dri)
+   *      dNj/dri = dqj/dri * gj + qj* (sigma dqk/dri)
+   *      Thus Ni also contributes to j and for the same reason we need hj.. but hj = wij*qj*dqi/drj
    *      diffN1/diffrk = diffq1 *(q2+q3+q4) + q1*(diffq2+diffq3+diffq4) 
    */
 
@@ -410,16 +420,17 @@ void ComputeQ6SmoothAtom::compute_all()
      * Si = sigma(cij) over j
      * Ni = s2(Si)
      * N_MODE: N_total = sigma(Ni)
-     * PHI_MODE: PHI_i = sigma(s3(rij)*Ni*Nj)
+     * PHI_MODE: PHI = sigma(s3(rij)*Ni*Nj)
      * dNi/drk = ds2(Si)*dSi/drk 
      * dNi/drk = ds2(Si)*(sigma(dcij/drk))
      * dcij/drk = dbij/drk*ds1(bij)*s0(rij)+s1(bij)*ds0(rij)*drij/drk
      */
 
     /*
-     * I need the S2 to calculated the diff /drk
+     * I need the S2 to calculated the diff /drk and also gi
      * The large number of neighbors is prohibiting to 
-     * cache the cij values in the loop over j.
+     * cache the cij values in the loop over j. 
+     * Instead of caching them we recalculate their sum (gi) in the next loop.
      *
      * A solution is to cache the s0[j], ds0[j],
      * s1[j] and ds1[j] and multiply them by the ds2 or s2 
@@ -431,7 +442,7 @@ void ComputeQ6SmoothAtom::compute_all()
       j = jlist[jj];
       j &= NEIGHMASK;
 
-      double cij = 0.0;
+      double bij = 0.0;
 
       double distx = x[i][0] - x[j][0];
       double disty = x[i][1] - x[j][1];
@@ -441,16 +452,16 @@ void ComputeQ6SmoothAtom::compute_all()
       if (r < 1e-8 || r >= cutoff) continue;
 
       for (int indx = 0; indx < Q6_ARRAY_SIZE; ++indx) {
-        cij += q6ms_real[i][indx] * q6ms_real[j][indx] + q6ms_imag[i][indx] * q6ms_imag[j][indx];
+        bij += q6ms_real[i][indx] * q6ms_real[j][indx] + q6ms_imag[i][indx] * q6ms_imag[j][indx];
       }
 
       /* Some tests -->>*/
-      if (std::abs(cij) + eps > 1.0) error->warning(FLERR, "This aint good {},{}", i, j);
+      if (std::abs(bij) + eps > 1.0) error->warning(FLERR, "This aint good {},{}", i, j);
       /*<<--Some tests*/
 
       double s0val, ds0val;
       double s1val, ds1val;
-      s1(cij, s1val, ds1val);
+      s1(bij, s1val, ds1val);
       dist(r, cutoff, s0val, ds0val);
       Si += s1val * s0val;
 
@@ -491,14 +502,9 @@ void ComputeQ6SmoothAtom::compute_all()
       const double wpair = ds2 * s0j[j] * ds1j[j];
       const double wpair2 = ds2 * s1j[j] * ds0j[j];
 
-      for (int indx = 0; indx < Q6_ARRAY_SIZE; ++indx) {    // 2l+1 for l=6 → 13 harmonics
-        // values I have Rej, Imj and diff_q6s_real/imag for j atoms thank to the forward_comm.
-
-        const double Rej = q6ms_real[j][indx];
-        const double Imj = q6ms_imag[j][indx];
-
-        gi_real[i][indx] += wpair * Rej;
-        gi_imag[i][indx] += wpair * Imj;
+      for (int indx = 0; indx < Q6_ARRAY_SIZE; ++indx) { 
+        gi_real[i][indx] += wpair * q6ms_real[j][indx];
+        gi_imag[i][indx] += wpair * q6ms_imag[j][indx];
       }
 
       // the distance contribution to the dcij/dri
@@ -517,11 +523,19 @@ void ComputeQ6SmoothAtom::compute_all()
       }
     }
 
-    // This part calculates the cij dependent component of diffNi/diffri or diffN_total/diffri
+    /*
+     * gi = sigma(wij*qj) 
+     * N_MODE : CV = sigma(qi*gi) dCV/dri = sigma(gi*dqi/dri (PART I) + qi*(wij*sigmadqj/dri) (PART 2))
+     * PART 2  = gi*dqi/drj
+     * PHI_MODE: Ni = gi*qi dNi/dri = gi*dqi/dri (PART I) + qi*(wij*sigmadqj/dri) (PART 2)
+     * PART 2 = qi*dqi/drj
+     */
+    // This part calculates the qj*dqi/dri dependent component of diffNi/diffri or diffN_total/diffri
+    // (the  qi*dgi/dri (qi*sigma(dqj/dri)) is calculated in the next part!)
     // cij = sigma (qi*qj)
-    // dcij/dri = dqi/dri * gi
+    // dcij/dri = dqi/dri * gi + qi*dgi/dri (in the next section)
     // N_MODE : CV = sigma (gi*qi) --> dCV/dri = 2.0*gi*dqi/dri+...
-    // PHI_MODE : CV = gi*qi --> dCV/dri = gi*dqi/dri+...
+    // PHI_MODE : Ni = gi*qi --> dNi/dri = gi*dqi/dri+...
     for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
       const double diff_x = diff_q6ms_real[i][indx][0] * gi_real[i][indx] +
           diff_q6ms_imag[i][indx][0] * gi_imag[i][indx];
@@ -600,57 +614,63 @@ void ComputeQ6SmoothAtom::compute_all()
     }
   }
 
-  // Transfering the Ni, to the ghost atoms
-  if (mode & PHI_MODE) {
-    forward_mode = N_TRANSFER;
-    comm_forward = N_STRIDE;
-    comm->forward_comm(this);
-  }
+  // Now we have dCV/dri (N_MODE) or dNi/dri (PHI_MODE)
+
+
 
   /*
    * phi = sigma(K(rij)*Ni*Nj)
    * Since the Nj values which are not neighbor of i do not
-   * contribute to the dphi/dri we consider phi as 2*Ni(K(rij)*sigmaNj)
+   * contribute to the dphi/dri we consider phi as 2*Ni(K(rij)*sigmaNj) where j is neighbor of i
    * and Gi = K(rij)*sigmaNj
-   * So dphi/dri = diffNi/diffri*Gi + sigma(dK(rij)/dri*Ni*Nj) + Ni*(sigma K(rij)*dNj/dri)
-   * the second term is calculated in the neighbor ranks.
+   * So dphi/dri = 2.0*(diffNi/diffri*Gi + sigma(dK(rij)/dri*Ni*Nj) + Gj*dNj/dri))
+   * the third term is calculated in the neighbor ranks.
    */
 
   /* 
     * So the following steps are used in the calculation of diffphi/diffri
-    *
+    * step 0: forward transfer the N[j] (needed for the calculation of G[i])
     * step 1: Gi is calculated.
-    * step 2: term 1 (diffNi/diffri*Gi)  is calculated
-    * step 3: term 2 components for each j  (dK(rij)/dri*Ni*Nj) is added.
-    * step 4: term 3 (Ni*K(rij)*dNj/dri)) components are calculated on the fly
-    * step 4A: contribution of dqi/dri through various Nk terms in the Ni*sigma(K(ik)*dNk/drj) (dphi/dri)
-    * step 4B: Contribution of the dqi/drj to the Nj*sigma(K(rjk)*dNk/drj) through Ni the term (dphi/drj)
-    * step 4C: Contribution of the dqi/drj through Nk term of other neighbors of i expect for j to the dphi/drj
-    * step 4D: The distance dependent term for each Ni in the Nj*dNi/drj is added.
+    * step 2: Gi is forward communicated to ghost atoms
+    * step 3: term 1 (diffNi/diffri*Gi)  is calculated - We have diffNi/diffri on this rank.
+    * step 4: term 2 components for each j  (dK(rij)/dri*Ni*Nj) is added.
+    * step 5: term 3 (Gj*dNj/dri)) components (for atom i (step 5A dNj/dri) and atom j (steps 5B-5D - dNi/drj)) are calculated on the fly
+    * step 5A: contribution of dqi/dri through various Nk terms in the Gi*sigma(K(ik)*dNk/drj) (dphi/dri)
+    * step 5B: Contribution of the dqi/drj to the Gj*sigma(K(rjk)*dNk/drj) through Ni the term (dphi/drj)
+    * step 5C: Contribution of the dqi/drj through Nk term of other neighbors of i expect for j to the dphi/drj (j has been added in Step 4A)
+    * step 5D: The distance dependent term for each Ni in the Gj*dNi/drj is added.
     * This term is added since Ni = sigma(s0(rij)*s1(cij)).. This term is related to the diff(s0(rij))/drj
     * for instance the dq2/dr1 can also affect the dN2/dr1 = K(13)*(dq3/dr1*(q1+q2+q4)+q3*(dq1/dr1+dq2/dr1+dq4/dr1))
-    * step 5: reverse comm of dphi/drj
-    * step 6: adding the contrivution from the atom j (hj) to the diff. 
+    * step 6: reverse comm of dphi/drj
+    * step 7: adding the contrivution from the atom j (hj) to the diff. 
     */
 
   /*
      * This is an example
-     * K12*N1*dN2/dr1 = K(12)*N1*(dq2*(q1+q3)+q2*(dq1+dq3))
-     * K13*N1*dN3/dr1 = K(13)*N1*(dq3*(q1+q2+q4)+q3*(dq1+dq2+dq4))
-     * K14*N1*dN4/dr1 = K(14)*N1(dq4*(q1+q3)+q4*(dq1+dq3))
-     * 4A:  K12*N1*dN2/dr1 += K(12)*N1*dq1*q2 i == 1
-     *      K13*N1*dN3/dr1 += K(13)*N1*dq1*q3 i == 1
-     *      K14*N1*dN4/dr1 += K(14)*N1*dq1*q4 i == 1
-     * 4B:  K12*N1*dN2/dr1 += K(12)*N1*dq2*(q1+q3) i == 2 j == 1
-     *      K13*N1*dN3/dr1 += K(13)*N1*dq3*(q1+q2+q4) i == 3 j == 1
-     *      K14*N1*dN4/dr1 += K(14)*N1*dq4*(q1+q3) i == 4 j == 1
-     * 4C:  K12*N1*dN2/dr1 += K(12)*N1*q2*(dq3) i == 2
-     *      K13*N1*dN3/dr1 += K(13)*N1*q3*(dq2+dq4) i == 3
-     *      K14*N1*dN4/dr1 += K(14)*N1*q4*(dq3) i == 4
+     * G2*dN2/dr1 = G2*(dq2*(q1+q3)+q2*(dq1+dq3))
+     * G3*dN3/dr1 = G3*N1*(dq3*(q1+q2+q4)+q3*(dq1+dq2+dq4))
+     * G4*dN4/dr1 = G4)*N1(dq4*(q1+q3)+q4*(dq1+dq3))
+     * 4A:  G2*dN2/dr1 += G2*dq1*q2 i == 1
+     *      G3*dN3/dr1 += G3*dq1*q3 i == 1
+     *      G4*dN4/dr1 += G4*dq1*q4 i == 1
+     * 4B:  G2*dN2/dr1 += G2*dq2*(q1+q3) i == 2 j == 1
+     *      G3*dN3/dr1 += G3*dq3*(q1+q2+q4) i == 3 j == 1
+     *      G4*dN4/dr1 += G4*dq4*(q1+q3) i == 4 j == 1
+     * 4C:  G2*dN2/dr1 += G2*q2*(dq3) i == 2
+     *      G3*dN3/dr1 += G3*q3*(dq2+dq4) i == 3
+     *      G4*dN4/dr1 += G4*q4*(dq3) i == 4
      * 
      */
 
   if (mode & PHI_MODE) {
+    /*
+     * step 0
+     */
+
+    forward_mode = N_TRANSFER;
+    comm_forward = N_STRIDE;
+    comm->forward_comm(this);
+
     for (ii = 0; ii < inum; ii++) {
       i = ilist[ii];
       jnum = numneigh[i];
@@ -675,16 +695,34 @@ void ComputeQ6SmoothAtom::compute_all()
          */
         Gi[i] += s3val * Ni[j];
       }
+    }
 
-      // phi[i] = Ni[i] * sigma(Kij*Ni[j])
+    /* 
+     * step 2: 
+     * forward comm Gi
+     */
+    forward_mode = G_TRANSFER;
+    comm_forward = G_STRIDE;
+    comm->forward_comm(this);
+    
+    for (ii = 0; ii < inum; ii++) {
+      i = ilist[ii];
+      jnum = numneigh[i];
+      jlist = firstneigh[i];
+      if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
+
+      // phi[i] = Ni[i] * sigma(Kij*Ni[j]) = Ni[i]*Gi[i]
       array_atom[i][val_col] += Ni[i] * Gi[i];
 
       /*
-       * step 2 - diffNi/diffri*(sigma K(rij)*Nj)
+       * step 3 - Gi *diffNi/diffri
        */
       array_atom[i][diff_x_col] += 2.0 * diff_Ni[i][0] * Gi[i];
       array_atom[i][diff_y_col] += 2.0 * diff_Ni[i][1] * Gi[i];
       array_atom[i][diff_z_col] += 2.0 * diff_Ni[i][2] * Gi[i];
+
+
+
 
       for (jj = 0; jj < jnum; jj++) {
         j = jlist[jj];
@@ -704,10 +742,9 @@ void ComputeQ6SmoothAtom::compute_all()
         double s0val, s1val, s3val;
         double ds0, ds1, ds3;
 
-        /* step 3
-         * s3 dependent contribution of dNi/drj to the Nj*sigma(diffNk/diffrj)
-         *
-         *
+        /*
+         * step 4
+         * sigma(dK(rij)/dri*Ni*Nj)
          */
         dist(r, cutoff, s3val, ds3);
         wpair3 = -ds3;
@@ -717,46 +754,52 @@ void ComputeQ6SmoothAtom::compute_all()
         array_atom[i][diff_z_col] += 2 * wpair3 * Ni[i] * Ni[j] * distz / r;
 
         /*
-         * step 4:
+         * step 5:
          *
          */
 
         /*
-         * step 4A
-         * contribution of the dqi/dri to the Ni*simga(diffNk/diffri)
-         * it contributes to the Nj terms in the sigma(diffNk/diffri)
-         *
+         * step 5A
+         * contribution of the dqi/dri to the simga(Gk*diffNk/diffri)
+         * it contributes through the Nj terms in the 
+         * Gj*diffNj/diffri
          */
 
         double cij = 0.0;
         for (int indx = 0; indx < Q6_ARRAY_SIZE; ++indx) {
           cij += q6ms_real[i][indx] * q6ms_real[j][indx] + q6ms_imag[i][indx] * q6ms_imag[j][indx];
         }
+        // cache for step 5D
+        Cjj[j] = cij;
 
         dist(r, cutoff, s0val, ds0);
         s1(cij, s1val, ds1);
 
         // it contributes to the Nj that is the reason why ds2i[j]
-        wpair = s3val * ds2i[j] * ds1 * s0val * Ni[i];
+        // Gi[j] contains the s3val
+        // Gj*Nj
+        wpair = ds2i[j] * ds1 * s0val * Gi[j];
 
-        double dcij_dri[N_DIM];
+        double qjdqi_dri[N_DIM];
 
         for (dim = 0; dim < N_DIM; dim++) {
-          dcij_drj[dim] = 0.0;
+          qjdqi_drj[dim] = 0.0;
           for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
-            dcij_dri[dim] = diff_q6ms_real[i][indx][dim] * q6ms_real[j][indx] +
+            qjdqi_dri[dim] = diff_q6ms_real[i][indx][dim] * q6ms_real[j][indx] +
                 diff_q6ms_imag[i][indx][dim] * q6ms_imag[j][indx];
           }
         }
 
-        array_atom[i][diff_x_col] = 2.0 * wpair * dcij_dri[0];
-        array_atom[i][diff_y_col] = 2.0 * wpair * dcij_dri[1];
-        array_atom[i][diff_z_col] = 2.0 * wpair * dcij_dri[2];
+        array_atom[i][diff_x_col] = 2.0 * wpair * qjdqi_dri[0];
+        array_atom[i][diff_y_col] = 2.0 * wpair * qjdqi_dri[1];
+        array_atom[i][diff_z_col] = 2.0 * wpair * qjdqi_dri[2];
 
         /*
-         * step 4B
-         * Contribution of the dqi/drj to the Nj*sigma(dNk/drj)
+         * step 5B
+         * Contribution of the dqi/drj to the sigma(Gk*dNk/drj)
+         * and dphi/drj
          * It contributes to the Ni term in the sigma
+         * Gi*dNi/drj
          */
 
         /*
@@ -771,9 +814,10 @@ void ComputeQ6SmoothAtom::compute_all()
         calculate_dq6i_drj(distance, q6ms_real[i], q6ms_imag[i], inv_nbnum_i[i], inv_q6_norm_i[i],
                            dqi_drj_real, dqi_drj_imag);
 
-        //Ni contribution to the Nj*sigma(K(ij)*dN/dri)
+        // Ni contribution to the Nj*sigma(K(ij)*dN/dri)
         // gi_real and _imag have ds2i[i]*ds1*s0val
-        wpair = s3val * Ni[j];
+        // Gi[i] contains the s3val
+        wpair = Gi[i];
 
         for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
           for (int dim = 0; dim < 3; dim++) {
@@ -782,9 +826,21 @@ void ComputeQ6SmoothAtom::compute_all()
                  dqi_drj_imag[indx][dim] * gi_imag[i][indx]);
           }
         }
+      }
 
+      // Wanted to cache Cjj to be used in the loop over k 
+      // and that is the reason why I needed another loop over jj
+      for (jj = 0; jj < jnum; jj++) {
+        j = jlist[jj];
+        j &= NEIGHMASK;
+        double distx = x[j][0] - x[i][0];
+        double disty = x[j][1] - x[i][1];
+        double distz = x[j][2] - x[i][2];
+        double r = sqrt(distx * distx + disty * disty + distz * distz);
+        std::array<double, N_DIM> distance = {distx, disty, distz};
+        if (r < 1e-8 || r >= cutoff) continue;
         /*
-         * step 4C
+         * step 5C
          * It is possible that other neighbors of i except for j contribute to the Nj*sigma(diffNl/drj)
          * This contribution is through Nk in which k!=j and k is neighbor of i
          * Those terms contribute through qi*qk
@@ -801,32 +857,20 @@ void ComputeQ6SmoothAtom::compute_all()
           double distzjk = x[j][2] - x[k][2];
           double rjk = sqrt(distxjk * distxjk + distyjk * distyjk + distzjk * distzjk);
           if (rjk < 1e-8 || rjk >= cutoff) continue;
-          double distxik = x[i][0] - x[k][0];
-          double distyik = x[i][1] - x[k][1];
-          double distzik = x[i][2] - x[k][2];
-          double rik = sqrt(distxik * distxik + distyik * distyik + distzik * distzik);
-          if (rik < 1e-8 || rik >= cutoff) continue;
 
-          /* It is the Nj*diffNk/diffrj contribution.
-            * Thus the s3 must be based on rjk since phi = sigma (s3(rij)*Ni*Nj)
-            * But s2 must be based on rik since its based on the qi*qk 
-            * and ds1 must be based on the cik
-            * Since k is neighbor of i we have all of its q values thanks to the forward comm. 
-            */
+          /* It is the Gk*diffNk/diffrj contribution.
+           * But s2 must be based on rik since its based on the qi*qk 
+           * and ds1 must be based on the cik.
+           * Since k is a neighbor of i, we have all of its q values thanks to the forward comm. 
+           */
 
-          double cik = 0.0;
-          for (int indx = 0; indx < 13; indx++)
-            cik +=
-                q6ms_real[i][indx] * q6ms_real[k][indx] + q6ms_imag[i][indx] * q6ms_imag[k][indx];
-
-          double s3jkval, ds3jk;
+          double cik = Cjj[k];
           double s2ikval, ds2ik;
           double s1ikval, ds1ik;
           double s0ikval, ds0ik;
-          dist(rjk, cutoff, s3jkval, ds3jk);
           s1(cik, s1ikval, ds1ik);
           dist(rik, cutoff, s0val, ds0);
-          wpair = s3jk * ds2i[k] * ds1ik * s0ikval * Ni[j];
+          wpair = ds2i[k] * ds1ik * s0ikval * Gi[k];
           for (int ind x = 0; indx < Q6_ARRAY_SIZE; indx++)
             for (int dim = 0; dim < N_DIM; dim++)
               hj[j][dim] += wpair *
@@ -835,14 +879,13 @@ void ComputeQ6SmoothAtom::compute_all()
         }
 
         /*
-          * step 4D: distance dependent term to the Nj*diffNi/drj
-          */
-
-        wpair = -Ni[j] * ds2[i] * s1val * ds0;
-        for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++)
-          for (int dim = 0; dim < N_DIM; dim++)
-            hj[j][dim] += wpair * (q6ms_real[i] * q6ms_real[j] + q6ms_imag[i] * q6m_imag[j]) *
-                distance[dim] / r;
+         * step 5D: distance dependent term to the Gi*diffNi/drj
+         */
+        double s0val, ds0;
+        dist(r, cutoff, s0val, ds0);
+        wpair = -Gi[i] * ds2[i] * s1val * ds0;
+        for (int dim = 0; dim < 3; dim++)
+          hj[j][dim] += wpair*Cjj[j]*distance[dim]/r;
       }
     }
   }
@@ -888,9 +931,9 @@ void ComputeQ6SmoothAtom::compute_all()
     double z_comp = array_atom[i][diff_z_col];
     double slope = std::sqrt(x_comp * x_comp + y_comp * y_comp + z_comp * z_comp);
     if (slope < min_slope) {
-      array_atom[i][diff_x_col] = -0.5 * min_slope + min_slope * rng->gaussian();
-      array_atom[i][diff_y_col] = -0.5 * min_slope + min_slope * rng->gaussian();
-      array_atom[i][diff_z_col] = -0.5 * min_slope + min_slope * rng->gaussian();
+      array_atom[i][diff_x_col] = min_slope * (rng->gaussian()-0.5);
+      array_atom[i][diff_y_col] = min_slope * (rng->gaussian()-0.5);
+      array_atom[i][diff_z_col] = min_slope * (rng->gaussian()-0.5);
     }
   }
 
@@ -924,6 +967,13 @@ int ComputeQ6SmoothAtom::pack_forward_comm(int n, int *list, double *buf, int /*
       j = list[i];
       buf[m++] = Ni[j];
     }
+  } else if (forward_mode & G_TRANSFER) {
+    if (comm_forward != G_STRIDE)
+      error->one(FLERR, "Wrong value in the comm_foward {}", comm_forward);
+    for (int i = 0; i < n; i++) {
+      j = list[i];
+      buf[m++] = Gi[j];
+    }
   } else
     error->one(FLERR, "Wrong forward_comm flag");
 
@@ -952,7 +1002,12 @@ void ComputeQ6SmoothAtom::unpack_forward_comm(int n, int first, double *buf)
     if (comm_forward != N_STRIDE)
       error->one(FLERR, "Wrong value in the comm_foward {}", comm_forward);
     for (j = first; j < last; j++) { Ni[j] = buf[m++]; }
-  }
+  } else if (forward_mode & G_TRANSFER) {
+    if (comm_forward != G_STRIDE)
+      error->one(FLERR, "Wrong value in the comm_foward {}", comm_forward);
+    for (j = first; j < last; j++) { Gi[j] = buf[m++]; }
+  } else 
+    error->one(FLERR, "Wrong forward_comm flag");
 }
 
 /* ----------------------------------------------------------------------
@@ -1049,7 +1104,7 @@ void ComputeQ6SmoothAtom::calculate_dq6i_drj(const std::array<double, N_DIM> &di
 
   /*
    * It is possible that all of the neighbors of the atom k
-   * do not belong to this rank, if it is a ghost atom
+   * do not belong to this rank, if it is a ghost atom.
    * That is the reason why we cannot have its nbnum and 
    * qnorm.. Accordingly these values have been forward communicated
    * for ghost atoms.
