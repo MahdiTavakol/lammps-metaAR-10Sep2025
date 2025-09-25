@@ -115,29 +115,29 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
     double out = 1.0;
     switch (n) {
       case 6:
-        out *= x;
+        out *= s;
         [[fallthrough]];
       case 5:
-        out *= x;
+        out *= s;
         [[fallthrough]];
       case 4:
-        out *= x;
+        out *= s;
         [[fallthrough]];
       case 3:
-        out *= x;
+        out *= s;
         [[fallthrough]];
       case 2:
-        out *= x;
+        out *= s;
         [[fallthrough]];
       case 1:
-        out *= x;
+        out *= s;
         [[fallthrough]];
       case 0:
         return out;
       default:;    // fall back below if n>6
     }
     // Fallback for bigger n: exponentiation by squaring (O(log n))
-    double r = out, b = x;
+    double r = out, b = s;
     unsigned k = static_cast<unsigned>(n);
     r = 1.0;
     while (k) {

@@ -781,8 +781,8 @@ void ComputeQ6SmoothAtom::compute_all()
 
         double qjdqi_dri[N_DIM];
 
-        for (dim = 0; dim < N_DIM; dim++) {
-          qjdqi_drj[dim] = 0.0;
+        for (int dim = 0; dim < N_DIM; dim++) {
+          qjdqi_dri[dim] = 0.0;
           for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
             qjdqi_dri[dim] = diff_q6ms_real[i][indx][dim] * q6ms_real[j][indx] +
                 diff_q6ms_imag[i][indx][dim] * q6ms_imag[j][indx];
@@ -856,6 +856,11 @@ void ComputeQ6SmoothAtom::compute_all()
           double distzjk = x[j][2] - x[k][2];
           double rjk = sqrt(distxjk * distxjk + distyjk * distyjk + distzjk * distzjk);
           if (rjk < 1e-8 || rjk >= cutoff) continue;
+          double distxik = x[i][0] - x[k][0];
+          double distyik = x[i][1] - x[k][1];
+          double distzik = x[i][2] - x[k][2];
+          double rik = sqrt(distxik * distxik + distyik * distyik + distzik * distzik);
+          if (rik < 1e-8 || rik >= cutoff) continue;
 
           /* It is the Gk*diffNk/diffrj contribution.
            * But s2 must be based on rik since its based on the qi*qk 
@@ -868,9 +873,9 @@ void ComputeQ6SmoothAtom::compute_all()
           double s1ikval, ds1ik;
           double s0ikval, ds0ik;
           s1(cik, s1ikval, ds1ik);
-          dist(rik, cutoff, s0val, ds0);
-          wpair = ds2i[k] * ds1ik * s0ikval * Gi[k];
-          for (int ind x = 0; indx < Q6_ARRAY_SIZE; indx++)
+          dist(rik, cutoff, s0ikval, ds0ik);
+          double wpair = ds2i[k] * ds1ik * s0ikval * Gi[k];
+          for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++)
             for (int dim = 0; dim < N_DIM; dim++)
               hj[j][dim] += wpair *
                   (dqi_drj_real[indx][dim] * q6ms_real[k][indx] +
@@ -881,10 +886,12 @@ void ComputeQ6SmoothAtom::compute_all()
          * step 5D: distance dependent term to the Gi*diffNi/drj
          */
         double s0val, ds0;
+        double s1val, ds1;
+        s1(Cjj[j], s1val, ds1);
         dist(r, cutoff, s0val, ds0);
-        wpair = -Gi[i] * ds2[i] * s1val * ds0;
+        double wpair = Gi[i] * ds2i[i] * s1val * ds0;
         for (int dim = 0; dim < 3; dim++)
-          hj[j][dim] += wpair*Cjj[j]*distance[dim]/r;
+          hj[j][dim] += wpair*distance[dim]/r;
       }
     }
   }
