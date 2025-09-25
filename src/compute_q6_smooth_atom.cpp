@@ -70,6 +70,14 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
     } else if (strcmp(arg[iarg], "phi") == 0) {
       mode = PHI_MODE;
       iarg++;
+    } else if (strcmp(arg[iarg], "s0") == 0) {
+      switches[0] = false;
+    } else if (strcmp(arg[iarg], "s1") == 0) {
+      switches[1] = false;
+    } else if (strcmp(arg[iarg], "s2") == 0) {
+      switches[2] = false;
+    } else if (strcmp(arg[iarg], "s3") == 0) {
+      switches[3] = false;
     } else
       error->all(FLERR, "Illegal compute q6-smooth/atom command");
   }
@@ -219,14 +227,29 @@ void ComputeQ6SmoothAtom::compute_all()
   */
 
   // lambda functions
+  auto s0 = [&](const double &input, double &output, double &diff) {
+    if (switches[0])
+      dist(input,cutoff,diff);
+    else
+      equal(input,output,diff);
+  }
   auto s1 = [&](const double &input, double &output, double &diff) {
-    orient(input, beta1, x01, output, diff);
+    if (switches[1])
+      orient(input, beta1, x01, output, diff);
+    else
+      equal(input,output,diff);
   };
   auto s2 = [&](const double &input, double &output, double &diff) {
-    orient(input, beta2, x02, output, diff);
+    if (switches[2])
+      orient(input, beta2, x02, output, diff);
+    else
+      equal(input,output,diff);
   };
   auto s3 = [&](const double &input, double &output, double &diff) {
-    dist(input, cutoff, output, diff);
+    if (switches[3])
+      dist(input, cutoff, output, diff);
+    else
+      equal(input,output,diff);
   };
   /*
   auto s1 = [&](const double& input, double& output, double& diff) {
@@ -462,7 +485,7 @@ void ComputeQ6SmoothAtom::compute_all()
       double s0val, ds0val;
       double s1val, ds1val;
       s1(bij, s1val, ds1val);
-      dist(r, cutoff, s0val, ds0val);
+      s0(r, cutoff, s0val, ds0val);
       Si += s1val * s0val;
 
       s0j[j] = s0val;
@@ -771,7 +794,7 @@ void ComputeQ6SmoothAtom::compute_all()
         // cache for step 5D
         Cjj[j] = cij;
 
-        dist(r, cutoff, s0val, ds0);
+        s0(r, cutoff, s0val, ds0);
         s1(cij, s1val, ds1);
 
         // it contributes to the Nj that is the reason why ds2i[j]
@@ -873,7 +896,7 @@ void ComputeQ6SmoothAtom::compute_all()
           double s1ikval, ds1ik;
           double s0ikval, ds0ik;
           s1(cik, s1ikval, ds1ik);
-          dist(rik, cutoff, s0ikval, ds0ik);
+          s0(rik, cutoff, s0ikval, ds0ik);
           double wpair = ds2i[k] * ds1ik * s0ikval * Gi[k];
           for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++)
             for (int dim = 0; dim < N_DIM; dim++)
@@ -888,7 +911,7 @@ void ComputeQ6SmoothAtom::compute_all()
         double s0val, ds0;
         double s1val, ds1;
         s1(Cjj[j], s1val, ds1);
-        dist(r, cutoff, s0val, ds0);
+        s0(r, cutoff, s0val, ds0);
         double wpair = Gi[i] * ds2i[i] * s1val * ds0;
         for (int dim = 0; dim < 3; dim++)
           hj[j][dim] += wpair*distance[dim]/r;
@@ -1091,7 +1114,7 @@ void ComputeQ6SmoothAtom::dist(const double &input, const double &cutoff, double
 
 /* --------------------------------------------------------------------- */
 
-void ComputeQ6SmoothAtom::equal(const double &input, const double &cutoff, double &output,
+void ComputeQ6SmoothAtom::equal(const double &input, double &output,
                                 double &diff)
 {
   output = input;
