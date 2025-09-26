@@ -1379,7 +1379,34 @@ std::array<double, 104> ComputeQ6SmoothAtom::calculate_Y6m(const std::array<doub
 
   std::array<double, 104> Y6m;
   std::fill_n(Y6m.begin(), Y6m.size(), 0.0);
-  if (r < eps || rxy < eps) return Y6m;
+  if (r < eps) return Y6m;
+
+
+  // Handle pole: rxy == 0 → x=y=0, on z-axis (φ undefined)
+  if (rxy < eps) {
+    const double ct = z / r;           // cos(theta) = ±1
+    double ct_pow[7]; ct_pow[0] = 1.0;
+    for (int k = 1; k <= 6; ++k) ct_pow[k] = ct_pow[k-1] * ct;
+
+    // Coefficient for m=0 (matches your C0 above)
+    const double C0 = (1.0/32.0) * std::sqrt(13.0/M_PI);
+
+    // Associated Legendre for l=6,m=0 as polynomial in cos(theta)
+    const double second = 231.0*ct_pow[6] - 315.0*ct_pow[4] + 105.0*ct_pow[2] - 5.0;
+
+    // Fill only m=0 (deg = 0). Re part is nonzero, Im part is zero.
+    const int off = (0 + 6) * 8;
+    Y6m[off + 0] = C0 * /*first*/ 1.0 * second; // Re(Y_6^0)
+    Y6m[off + 1] = 0.0;                         // Im(Y_6^0) = 0
+
+    // Derivatives at the pole: set to zero (stable convention)
+    Y6m[off + 2] = Y6m[off + 3] = 0.0; // d/dx of Re/Im
+    Y6m[off + 4] = Y6m[off + 5] = 0.0; // d/dy of Re/Im
+    Y6m[off + 6] = Y6m[off + 7] = 0.0; // d/dz of Re/Im
+
+    // m≠0 entries already zeroed by the std::fill_n earlier
+    return Y6m;
+  }
 
   const double ct = z / r;                // cos(theta)
   const double st = std::sqrt(std::max(0.0, 1.0 - ct*ct)); // sin(theta), robust to FP
