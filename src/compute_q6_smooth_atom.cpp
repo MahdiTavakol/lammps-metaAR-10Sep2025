@@ -1071,10 +1071,22 @@ void ComputeQ6SmoothAtom::compute_all()
   MPI_Allreduce(&phi_sum, &phi_sum_all, 1, MPI_DOUBLE, MPI_SUM, world);
   MPI_Allreduce(&num_selected, &num_selected_all, 1, MPI_INT, MPI_SUM, world);
 
+  double total_force[N_DIM];
+  double total_force_all[N_DIM];
+
+  std::fill_n(total_force,N_DIM,0.0);
+
   double num_double = static_cast<double>(num_selected_all);
   double scaling = num_double >= 2 ? 2.0 / (num_double * (num_double - 1.0)) : 0.0;
+  phi_sum_all *= scaling;
+  scalar = phi_sum_all;
+
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
+    jnum = numneigh[i];
+    jlist = firstneigh[i];
+    if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
+
     array_atom[i][val_col] *= scaling;
     array_atom[i][diff_x_col] *= scaling;
     array_atom[i][diff_y_col] *= scaling;
@@ -1101,9 +1113,30 @@ void ComputeQ6SmoothAtom::compute_all()
         array_atom[i][diff_z_col] *= s;
       }
     }
+
+    total_force[0] += array_atom[i][diff_x_col];
+    total_force[1] += array_atom[i][diff_y_col];
+    total_force[2] += array_atom[i][diff_z_col];
   }
 
-  phi_sum *= scaling;
+  // zeroing out the total force;
+
+  MPI_Allreduce(total_force,total_force_all,N_DIM,MPI_DOUBLE,MPI_SUM,world);
+
+  double delta_force[3];
+  for (int dim = 0; dim < N_DIM; dim++)
+    delta_force[dim] = total_force_all[dim] / num_double;
+
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    jnum = numneigh[i];
+    jlist = firstneigh[i];
+    if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
+
+    array_atom[i][diff_x_col] += -delta_force[0];
+    array_atom[i][diff_y_col] += -delta_force[1];
+    array_atom[i][diff_z_col] += -delta_force[2];
+  }
 
   //scalar = num_selected_all ? Q6_sum_all / static_cast<double>(num_selected_all) :0.0;
 }
