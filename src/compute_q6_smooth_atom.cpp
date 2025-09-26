@@ -34,7 +34,7 @@ using namespace LAMMPS_NS;
 
 enum { Q6_TRANSFER = 1 << 1, N_TRANSFER = 1 << 2, G_TRANSFER = 1 << 3 };
 
-enum { N_MODE = 0, PHI_MODE = 1 << 1, SIMPLE_PHI_MODE = 1 << 2 };
+enum { N_MODE = 1 << 0, PHI_MODE = 1 << 1, SIMPLE_PHI_MODE = 1 << 2 };
 
 enum { Q6_STRIDE = 26, N_STRIDE = 1, G_STRIDE = 1 };
 
@@ -48,7 +48,7 @@ static double constexpr min_slope = 0.02;
 /* ---------------------------------------------------------------------- */
 
 ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
-    ComputeDiffAtom{lmp, narg, arg}, mode{N_MODE}, chosen_type{-1}, cutoff{3.2},
+    ComputeDiffAtom{lmp, narg, arg}, mode{N_MODE}, chosen_type{-1}, switch_flag{0}, cutoff{3.2},
     q6ms_real{nullptr}, q6ms_imag{nullptr}, diff_q6ms_real{nullptr}, diff_q6ms_imag{nullptr},
     inv_q6_norm_i{nullptr}, inv_nbnum_i{nullptr},
     Ni{nullptr}, ds2i{nullptr}, diff_Ni{nullptr}, diff_Ntotal{nullptr}, gi_real{nullptr},
@@ -83,30 +83,34 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
       mode = PHI_MODE;
       iarg++;
     } else if (strcmp(arg[iarg], "S0") == 0) {
-      if (strcmp(arg[iarg+1],"on"))
+      if (iarg + 1 >= narg) error->all(FLERR, "Missing on/off after S0");
+      if (strcmp(arg[iarg+1],"on") == 0)
         switch_flag |= S0_SW;
-      else if (strcmp(arg[iarg+1],"off"))
+      else if (strcmp(arg[iarg+1],"off") == 0)
         switch_flag &= ~S0_SW;
       else error->all(FLERR, "Illegal compute q6-smooth/atom command");
       iarg+=2;
     } else if (strcmp(arg[iarg], "S1") == 0) {
-      if (strcmp(arg[iarg+1],"on"))
+      if (iarg + 1 >= narg) error->all(FLERR, "Missing on/off after S1");
+      if (strcmp(arg[iarg+1],"on") == 0)
         switch_flag |= S1_SW;
-      else if (strcmp(arg[iarg+1],"off"))
+      else if (strcmp(arg[iarg+1],"off") == 0)
         switch_flag &= ~S1_SW;
       else error->all(FLERR, "Illegal compute q6-smooth/atom command");
       iarg+=2;
     } else if (strcmp(arg[iarg], "S2") == 0) {
-      if (strcmp(arg[iarg+1],"on"))
+      if (iarg + 1 >= narg) error->all(FLERR, "Missing on/off after S2");
+      if (strcmp(arg[iarg+1],"on") == 0)
         switch_flag |= S2_SW;
-      else if (strcmp(arg[iarg+1],"off"))
+      else if (strcmp(arg[iarg+1],"off") == 0)
         switch_flag &= ~S2_SW;
       else error->all(FLERR, "Illegal compute q6-smooth/atom command");
       iarg+=2;
     } else if (strcmp(arg[iarg], "S3") == 0) {
-      if (strcmp(arg[iarg+1],"on"))
+      if (iarg + 1 >= narg) error->all(FLERR, "Missing on/off after S3");
+      if (strcmp(arg[iarg+1],"on") == 0)
         switch_flag |= S3_SW;
-      else if (strcmp(arg[iarg+1],"off"))
+      else if (strcmp(arg[iarg+1],"off") == 0)
         switch_flag &= ~S3_SW;
       else error->all(FLERR, "Illegal compute q6-smooth/atom command");
       iarg+=2;
@@ -274,6 +278,7 @@ void ComputeQ6SmoothAtom::compute_all()
   std::fill_n(&diff_Ntotal[0][0], nmax * N_DIM, 0.0);
   std::fill_n(Gi, nmax, 0.0);
   std::fill_n(&hj[0][0], nmax * N_DIM, 0.0);
+  std::fill_n(&hj2[0][0], nmax * N_DIM, 0.0);
 
   /*
    These variables either do not accumulate values
@@ -297,25 +302,25 @@ void ComputeQ6SmoothAtom::compute_all()
     if (switch_flag & S0_SW)
       dist(input,cutoff,output,diff);
     else
-      equal(input,output,diff);
+      unit(input,output,diff);
   };
   auto s1 = [&](const double &input, double &output, double &diff) {
     if (switch_flag & S1_SW)
       orient(input, beta1, x01, output, diff);
     else
-      equal(input,output,diff);
+      unit(input,output,diff);
   };
   auto s2 = [&](const double &input, double &output, double &diff) {
     if (switch_flag & S2_SW)
       orient(input, beta2, x02, output, diff);
     else
-      equal(input,output,diff);
+      unit(input,output,diff);
   };
   auto s3 = [&](const double &input, double &output, double &diff) {
     if (switch_flag & S3_SW)
       dist(input, cutoff, output, diff);
     else
-      equal(input,output,diff);
+      unit(input,output,diff);
   };
   /*
   auto s1 = [&](const double& input, double& output, double& diff) {
@@ -565,7 +570,7 @@ void ComputeQ6SmoothAtom::compute_all()
     s2(Si, s2val, ds2);
     if (mode & N_MODE) {
       array_atom[i][val_col] = s2val;
-    } else if (mode & PHI_MODE) {
+    } else if (mode & PHI_MODE || mode & SIMPLE_PHI_MODE) {
       array_atom[i][second_val_col] = s2val;
     }
     Ni[i] = s2val;
@@ -597,7 +602,7 @@ void ComputeQ6SmoothAtom::compute_all()
       }
 
       // the distance contribution to the dcij/dri
-      // the rij distance does not contribute to thstep 5e dcij/drk if k!=j
+      // the rij distance does not contribute to the step 5e dcij/drk if k!=j
       const double diff_x = wpair2 * distx / r;
       const double diff_y = wpair2 * disty / r;
       const double diff_z = wpair2 * distz / r;
@@ -704,7 +709,7 @@ void ComputeQ6SmoothAtom::compute_all()
     }
   }
 
-  // Transfering the hj from the ghost atoms
+  // Transferring the hj from the ghost atoms
   if (mode & SIMPLE_PHI_MODE) {
     comm_reverse = S_REV_STRIDE;
   } else {
@@ -765,7 +770,7 @@ void ComputeQ6SmoothAtom::compute_all()
     * This term is added since Ni = sigma(s0(rij)*s1(cij)).. This term is related to the diff(s0(rij))/drj
     * for instance the dq2/dr1 can also affect the dN2/dr1 = K(13)*(dq3/dr1*(q1+q2+q4)+q3*(dq1/dr1+dq2/dr1+dq4/dr1))
     * step 6: reverse comm of dphi/drj
-    * step 7: adding the contrivution from the atom j (hj) to the diff. 
+    * step 7: adding the contribution from the atom j (hj) to the diff. 
     */
 
   /*
@@ -816,7 +821,7 @@ void ComputeQ6SmoothAtom::compute_all()
         if (r < 1e-8 || r >= cutoff) continue;
 
         double s3val, ds3;
-        dist(r, cutoff, s3val, ds3);
+        s3(r,s3val,ds3);
         phi_sum += Ni[i] * Ni[j] * s3val;
 
         /*
@@ -877,7 +882,7 @@ void ComputeQ6SmoothAtom::compute_all()
          * step 4
          * sigma(dK(rij)/dri*Ni*Nj)
          */
-        dist(r, cutoff, s3val, ds3);
+        s3(r,s3val,ds3);
         wpair3 = -ds3;
 
         array_atom[i][diff_x_col] += 2 * wpair3 * Ni[i] * Ni[j] * distx / r;
@@ -1028,7 +1033,7 @@ void ComputeQ6SmoothAtom::compute_all()
 
     /*
      * step 5
-     * Transfering the hj from the ghost atoms
+     * Transferring the hj from the ghost atoms
      */
     comm_reverse = N_REV_STRIDE;
     comm->reverse_comm(this);
@@ -1050,9 +1055,16 @@ void ComputeQ6SmoothAtom::compute_all()
   }
 
   if (mode & SIMPLE_PHI_MODE) {
-    array_atom[i][diff_x_col] = diff_Ni[i][0]*Gi[i] + Ni[i]*(diff_Ntotal[i][0]-diff_Ni[i][0]);
-    array_atom[i][diff_x_col] = diff_Ni[i][1]*Gi[i] + Ni[i]*(diff_Ntotal[i][1]-diff_Ni[i][1]);
-    array_atom[i][diff_x_col] = diff_Ni[i][2]*Gi[i] + Ni[i]*(diff_Ntotal[i][2]-diff_Ni[i][2]);
+    for (int ii = 0; ii < inum; ii++) {
+      i = ilist[ii];
+      if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
+      
+      array_atom[i][val_col] += Ni[i]*Gi[i];
+
+      array_atom[i][diff_x_col] += 2.0*(diff_Ni[i][0]*Gi[i] + Ni[i]*(diff_Ntotal[i][0]-diff_Ni[i][0]));
+      array_atom[i][diff_y_col] += 2.0*(diff_Ni[i][1]*Gi[i] + Ni[i]*(diff_Ntotal[i][1]-diff_Ni[i][1]));
+      array_atom[i][diff_z_col] += 2.0*(diff_Ni[i][2]*Gi[i] + Ni[i]*(diff_Ntotal[i][2]-diff_Ni[i][2]));
+    }
   }
 
   MPI_Allreduce(&Q6_sum, &Q6_sum_all, 1, MPI_DOUBLE, MPI_SUM, world);
@@ -1071,9 +1083,10 @@ void ComputeQ6SmoothAtom::compute_all()
     double y_comp = array_atom[i][diff_y_col];
     double z_comp = array_atom[i][diff_z_col];
     double slope = std::sqrt(x_comp * x_comp + y_comp * y_comp + z_comp * z_comp);
-    if (slope > 0 && slope < min_slope) {
+    if (slope < min_slope) {
       const double target = std::abs(rng->gaussian()) * min_slope; // >= 0
-      if (slope == 0.0) {
+      // slope is under radical so it will never be negative..
+      if (slope <= 0.0) {
         if (comm->me == 0)
           error->warning(FLERR,"Dead gradient of zero in all the direction! \
                                  Setting a random value in the x-direction!");
@@ -1104,7 +1117,7 @@ int ComputeQ6SmoothAtom::pack_forward_comm(int n, int *list, double *buf, int /*
 
   if (forward_mode & Q6_TRANSFER) {
     if (comm_forward != Q6_STRIDE)
-      error->one(FLERR, "Wrong value in the comm_foward {}", comm_forward);
+      error->one(FLERR, "Wrong value in the comm_forward {}", comm_forward);
     for (int i = 0; i < n; i++) {
       j = list[i];
       for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
@@ -1114,14 +1127,14 @@ int ComputeQ6SmoothAtom::pack_forward_comm(int n, int *list, double *buf, int /*
     }
   } else if (forward_mode & N_TRANSFER) {
     if (comm_forward != N_STRIDE)
-      error->one(FLERR, "Wrong value in the comm_foward {}", comm_forward);
+      error->one(FLERR, "Wrong value in the comm_forward {}", comm_forward);
     for (int i = 0; i < n; i++) {
       j = list[i];
       buf[m++] = Ni[j];
     }
   } else if (forward_mode & G_TRANSFER) {
     if (comm_forward != G_STRIDE)
-      error->one(FLERR, "Wrong value in the comm_foward {}", comm_forward);
+      error->one(FLERR, "Wrong value in the comm_forward {}", comm_forward);
     for (int i = 0; i < n; i++) {
       j = list[i];
       buf[m++] = Gi[j];
@@ -1143,7 +1156,7 @@ void ComputeQ6SmoothAtom::unpack_forward_comm(int n, int first, double *buf)
 
   if (forward_mode & Q6_TRANSFER) {
     if (comm_forward != Q6_STRIDE)
-      error->one(FLERR, "Wrong value in the comm_foward {}", comm_forward);
+      error->one(FLERR, "Wrong value in the comm_forward {}", comm_forward);
     for (j = first; j < last; j++) {
       for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
         q6ms_real[j][indx] = buf[m++];
@@ -1152,11 +1165,11 @@ void ComputeQ6SmoothAtom::unpack_forward_comm(int n, int first, double *buf)
     }
   } else if (forward_mode & N_TRANSFER) {
     if (comm_forward != N_STRIDE)
-      error->one(FLERR, "Wrong value in the comm_foward {}", comm_forward);
+      error->one(FLERR, "Wrong value in the comm_forward {}", comm_forward);
     for (j = first; j < last; j++) { Ni[j] = buf[m++]; }
   } else if (forward_mode & G_TRANSFER) {
     if (comm_forward != G_STRIDE)
-      error->one(FLERR, "Wrong value in the comm_foward {}", comm_forward);
+      error->one(FLERR, "Wrong value in the comm_forward {}", comm_forward);
     for (j = first; j < last; j++) { Gi[j] = buf[m++]; }
   } else 
     error->one(FLERR, "Wrong forward_comm flag");
@@ -1222,7 +1235,7 @@ void ComputeQ6SmoothAtom::orient(const double &input, const double &beta, const 
   diff = beta * output * (1.0 - output);
 
   // avoiding dead gradient
-  if (std::abs(diff) <= min_slope) diff = output >= x0 ? min_slope : -min_slope;
+  if (std::abs(diff) <= min_slope) diff = min_slope;
 }
 
 /* --------------------------------------------------------------------- */
@@ -1252,14 +1265,6 @@ void ComputeQ6SmoothAtom::dist(const double &input, const double &cutoff, double
   if (std::abs(diff) <= min_slope) diff = x < 0.5 ? min_slope : -min_slope;
 }
 
-/* --------------------------------------------------------------------- */
-
-void ComputeQ6SmoothAtom::equal(const double &input, double &output,
-                                double &diff)
-{
-  output = input;
-  diff = 1.0;
-}
 
 /* ---------------------------------------------------------------------
    since the size of q6mi_dxj become very large we need to calculate the

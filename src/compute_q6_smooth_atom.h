@@ -107,7 +107,10 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   static void dist(const double &input, const double &cutoff, double &output, double &diff);
 
   // Just for debugging.
-  static void equal(const double &input,  double &output, double &diff);
+  static  inline void unit(const double &input,  double &output, double &diff) {
+    output = 1.0;
+    diff = 0.0;
+  }
 
   static std::array<double, 104> calculate_Y6m(const std::array<double, 3> &dist);
   static void calculate_dq6i_drj(const std::array<double, N_DIM> &dist, const double *q6m_real_i,
