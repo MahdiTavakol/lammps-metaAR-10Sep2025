@@ -64,6 +64,7 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
   comm_reverse = N_REV_STRIDE;
   
 
+  // Every switch is on by default.
   switch_flag |= S0_SW;
   switch_flag |= S1_SW;
   switch_flag |= S2_SW;
@@ -81,14 +82,34 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
     } else if (strcmp(arg[iarg], "phi") == 0) {
       mode = PHI_MODE;
       iarg++;
-    } else if (strcmp(arg[iarg], "s0") == 0) {
-      switch_flag &= ~S0_SW;
-    } else if (strcmp(arg[iarg], "s1") == 0) {
-      switch_flag &= ~S1_SW;
-    } else if (strcmp(arg[iarg], "s2") == 0) {
-      switch_flag &= ~S2_SW;
-    } else if (strcmp(arg[iarg], "s3") == 0) {
-      switch_flag &= ~S3_SW;
+    } else if (strcmp(arg[iarg], "S0") == 0) {
+      if (strcmp(arg[iarg+1],"on"))
+        switch_flag |= S0_SW;
+      else if (strcmp(arg[iarg+1],"off"))
+        switch_flag &= ~S0_SW;
+      else error->all(FLERR, "Illegal compute q6-smooth/atom command");
+      iarg+=2;
+    } else if (strcmp(arg[iarg], "S1") == 0) {
+      if (strcmp(arg[iarg+1],"on"))
+        switch_flag |= S1_SW;
+      else if (strcmp(arg[iarg+1],"off"))
+        switch_flag &= ~S1_SW;
+      else error->all(FLERR, "Illegal compute q6-smooth/atom command");
+      iarg+=2;
+    } else if (strcmp(arg[iarg], "S2") == 0) {
+      if (strcmp(arg[iarg+1],"on"))
+        switch_flag |= S2_SW;
+      else if (strcmp(arg[iarg+1],"off"))
+        switch_flag &= ~S2_SW;
+      else error->all(FLERR, "Illegal compute q6-smooth/atom command");
+      iarg+=2;
+    } else if (strcmp(arg[iarg], "S3") == 0) {
+      if (strcmp(arg[iarg+1],"on"))
+        switch_flag |= S3_SW;
+      else if (strcmp(arg[iarg+1],"off"))
+        switch_flag &= ~S3_SW;
+      else error->all(FLERR, "Illegal compute q6-smooth/atom command");
+      iarg+=2;
     } else
       error->all(FLERR, "Illegal compute q6-smooth/atom command");
   }
@@ -130,7 +151,7 @@ void ComputeQ6SmoothAtom::init()
   rng = std::make_unique<RanPark>(lmp, 11111);
 
   // All the switches are off
-  if (switch_flag == 0)
+  if (switch_flag == 0 && mode & PHI_MODE)
     mode = SIMPLE_PHI_MODE;
 }
 
