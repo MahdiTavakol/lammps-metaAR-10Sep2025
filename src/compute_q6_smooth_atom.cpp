@@ -32,15 +32,18 @@
 
 using namespace LAMMPS_NS;
 
+// Transfer mode flag
 enum { Q6_TRANSFER = 1 << 0, N_TRANSFER = 1 << 1, G_TRANSFER = 1 << 2 };
 
-enum { N_MODE = 1 << 0, PHI_MODE = 1 << 1, SIMPLE_PHI_MODE = 1 << 2 };
+// Execution flags
+enum { N_MODE = 1 << 0, PHI_MODE = 1 << 1, SIMPLE_PHI_MODE = 1 << 2, NO_DIFF = 1 << 3 };
 
-enum { Q6_STRIDE = 26, N_STRIDE = 1, G_STRIDE = 1 };
+// Transfer strides
+enum { Q6_FOR_STRIDE = 26, N_FOR_STRIDE = 1, G_FOR_STRIDE = 1 , N_REV_STRIDE = 3, S_REV_STRIDE=6};
 
-enum { N_REV_STRIDE = 3, S_REV_STRIDE=6};
-
+// Function flags for s0/s1/s2/s3
 enum { NONE = 0, S0_SW=1<<0, S1_SW=1<<1, S2_SW=1<<2, S3_SW=1<<3};
+
 
 // parameter to avoid dead gradient issue.
 static double constexpr min_slope = 0.02;
@@ -60,7 +63,7 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
   cutoff = utils::numeric(FLERR, arg[4], false, lmp);
 
   // before calling the comm->forward this parameter is set since it has two different values.
-  comm_forward = Q6_STRIDE;
+  comm_forward = Q6_FOR_STRIDE;
   comm_reverse = N_REV_STRIDE;
   
 
@@ -72,15 +75,12 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
 
   int iarg = 5;
   while (iarg < narg) {
-    if (strcmp(arg[iarg], "sigmoid") == 0) {
-      if (narg < iarg + 5) error->all(FLERR, "Illegal q6-smooth/atom command");
-      beta1 = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
-      x01 = utils::numeric(FLERR, arg[iarg + 2], false, lmp);
-      beta2 = utils::numeric(FLERR, arg[iarg + 3], false, lmp);
-      x02 = utils::numeric(FLERR, arg[iarg + 4], false, lmp);
-      iarg += 5;
+    if (strcmp(arg[iarg], "no_diff") == 0) {
+      if (comm->me == 0) error->warning(FLERR,"Turning off the diffs, this compute should not be used with any fixes that requests for diffs!");
+      mode |= NO_DIFF;
+      iarg++;
     } else if (strcmp(arg[iarg], "phi") == 0) {
-      mode = PHI_MODE;
+      mode |= PHI_MODE;
       iarg++;
     } else if (strcmp(arg[iarg], "S0_off") == 0) {
       switch_flag &= ~S0_SW;
@@ -148,12 +148,12 @@ void ComputeQ6SmoothAtom::init()
   if (!(switch_flag & S0_SW) && 
       !(switch_flag & S1_SW) &&
       !(switch_flag & S2_SW) &&
-      !(switch_flag & S2_SW) && 
+      !(switch_flag & S3_SW) && 
       (mode & PHI_MODE)) {
     if (comm->me == 0) {
       error->warning(FLERR,"Running the faster version of the phi mode!");
     }
-    mode = SIMPLE_PHI_MODE;
+    mode = (mode & NO_DIFF) | SIMPLE_PHI_MODE;
   }
 }
 
@@ -363,12 +363,14 @@ void ComputeQ6SmoothAtom::compute_all()
         int indx = deg + 6;
         q6ms_real[i][indx] += Y6m[offset + 0];
         q6ms_imag[i][indx] += Y6m[offset + 1];
-        diff_q6ms_real[i][indx][0] += Y6m[offset + 2];
-        diff_q6ms_imag[i][indx][0] += Y6m[offset + 3];
-        diff_q6ms_real[i][indx][1] += Y6m[offset + 4];
-        diff_q6ms_imag[i][indx][1] += Y6m[offset + 5];
-        diff_q6ms_real[i][indx][2] += Y6m[offset + 6];
-        diff_q6ms_imag[i][indx][2] += Y6m[offset + 7];
+        if (!(mode & NO_DIFF)) {
+          diff_q6ms_real[i][indx][0] += Y6m[offset + 2];
+          diff_q6ms_imag[i][indx][0] += Y6m[offset + 3];
+          diff_q6ms_real[i][indx][1] += Y6m[offset + 4];
+          diff_q6ms_imag[i][indx][1] += Y6m[offset + 5];
+          diff_q6ms_real[i][indx][2] += Y6m[offset + 6];
+          diff_q6ms_imag[i][indx][2] += Y6m[offset + 7];
+        }
       }
     }
     array_atom[i][nbnum_col] = nbnum;
@@ -389,13 +391,9 @@ void ComputeQ6SmoothAtom::compute_all()
     }
 
     double q6_norm = 0.0;
-    double diff_q6_norm[N_DIM] = {0.0, 0.0, 0.0};
 
     for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
       q6_norm += q6ms_real[i][indx] * q6ms_real[i][indx] + q6ms_imag[i][indx] * q6ms_imag[i][indx];
-      for (int dim = 0; dim < N_DIM; dim++)
-        diff_q6_norm[dim] += q6ms_real[i][indx] * diff_q6ms_real[i][indx][dim] +
-            q6ms_imag[i][indx] * diff_q6ms_imag[i][indx][dim];
     }
 
     q6_norm = std::sqrt(q6_norm);
@@ -408,23 +406,37 @@ void ComputeQ6SmoothAtom::compute_all()
       q6ms_imag[i][indx] *= inv_q6_norm;
     }
 
-    diff_q6_norm[0] *= inv_q6_norm;
-    diff_q6_norm[1] *= inv_q6_norm;
-    diff_q6_norm[2] *= inv_q6_norm;
 
-    for (int dim = 0; dim < N_DIM; dim++) {
+    if (!(mode & NO_DIFF)) {
+      
+      double diff_q6_norm[N_DIM] = {0.0, 0.0, 0.0};
+
       for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
-        diff_q6ms_real[i][indx][dim] =
+        for (int dim = 0; dim < N_DIM; dim++)
+          diff_q6_norm[dim] += q6ms_real[i][indx] * diff_q6ms_real[i][indx][dim] +
+            q6ms_imag[i][indx] * diff_q6ms_imag[i][indx][dim];
+      }
+
+
+
+      diff_q6_norm[0] *= inv_q6_norm;
+      diff_q6_norm[1] *= inv_q6_norm;
+      diff_q6_norm[2] *= inv_q6_norm;
+
+      for (int dim = 0; dim < N_DIM; dim++) {
+        for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
+          diff_q6ms_real[i][indx][dim] =
             (inv_q6_norm) * (diff_q6ms_real[i][indx][dim] - q6ms_real[i][indx] * diff_q6_norm[dim]);
-        diff_q6ms_imag[i][indx][dim] =
+          diff_q6ms_imag[i][indx][dim] =
             (inv_q6_norm) * (diff_q6ms_imag[i][indx][dim] - q6ms_imag[i][indx] * diff_q6_norm[dim]);
+        }
       }
     }
   }
 
   // forward_comm the q6ms_real, q6ms_imag, diff_q6ms_real and diff_q6ms_imag to ghost atoms
   forward_mode = Q6_TRANSFER;
-  comm_forward = Q6_STRIDE;
+  comm_forward = Q6_FOR_STRIDE;
   comm->forward_comm(this);
 
   /*
@@ -581,44 +593,48 @@ void ComputeQ6SmoothAtom::compute_all()
      * also calculate the  distance dependent terms (ds0) of the
      * diffNi/diffri or diffN_total/diffri
      */
-    for (jj = 0; jj < jnum; jj++) {
-      j = jlist[jj];
-      j &= NEIGHMASK;
+    
+    // Check if we need diffs or not!
+    if (!(mode & NO_DIFF)) {
+      for (jj = 0; jj < jnum; jj++) {
+        j = jlist[jj];
+        j &= NEIGHMASK;
 
-      const double distx = x[i][0] - x[j][0];
-      const double disty = x[i][1] - x[j][1];
-      const double distz = x[i][2] - x[j][2];
-      const double r = sqrt(distx * distx + disty * disty + distz * distz);
-      if (r < 1e-8 || r >= cutoff) continue;
+        const double distx = x[i][0] - x[j][0];
+        const double disty = x[i][1] - x[j][1];
+        const double distz = x[i][2] - x[j][2];
+        const double r = sqrt(distx * distx + disty * disty + distz * distz);
+        if (r < 1e-8 || r >= cutoff) continue;
 
-      const double wpair  = ds2 * s0j[j] * ds1j[j];
-      const double wpair2 = ds2 * s1j[j] * ds0j[j];
+        const double wpair  = ds2 * s0j[j] * ds1j[j];
+        const double wpair2 = ds2 * s1j[j] * ds0j[j];
 
-      for (int indx = 0; indx < Q6_ARRAY_SIZE; ++indx) { 
-        gi_real[i][indx] += wpair * q6ms_real[j][indx];
-        gi_imag[i][indx] += wpair * q6ms_imag[j][indx];
-      }
+        for (int indx = 0; indx < Q6_ARRAY_SIZE; ++indx) { 
+          gi_real[i][indx] += wpair * q6ms_real[j][indx];
+          gi_imag[i][indx] += wpair * q6ms_imag[j][indx];
+        }
 
-      // the distance contribution to the dcij/dri
-      // the rij distance does not contribute to the step 5e dcij/drk if k!=j
-      const double diff_x = wpair2 * distx / r;
-      const double diff_y = wpair2 * disty / r;
-      const double diff_z = wpair2 * distz / r;
-      if (mode & N_MODE) {
-        array_atom[i][diff_x_col] += 2.0 * diff_x;
-        array_atom[i][diff_y_col] += 2.0 * diff_y;
-        array_atom[i][diff_z_col] += 2.0 * diff_z;
-      } else if (mode & PHI_MODE) {
-        diff_Ni[i][0] += diff_x;
-        diff_Ni[i][1] += diff_y;
-        diff_Ni[i][2] += diff_z;
-      } else if (mode & SIMPLE_PHI_MODE) {
-        diff_Ni[i][0] += diff_x;
-        diff_Ni[i][1] += diff_y;
-        diff_Ni[i][2] += diff_z;
-        diff_Ntotal[i][0] += 2.0 * diff_x;
-        diff_Ntotal[i][1] += 2.0 * diff_y;
-        diff_Ntotal[i][2] += 2.0 * diff_z;
+        // the distance contribution to the dcij/dri
+        // the rij distance does not contribute to the step 5e dcij/drk if k!=j
+        const double diff_x = wpair2 * distx / r;
+        const double diff_y = wpair2 * disty / r;
+        const double diff_z = wpair2 * distz / r;
+        if (mode & N_MODE) {
+          array_atom[i][diff_x_col] += 2.0 * diff_x;
+          array_atom[i][diff_y_col] += 2.0 * diff_y;
+          array_atom[i][diff_z_col] += 2.0 * diff_z;
+        } else if (mode & PHI_MODE) {
+          diff_Ni[i][0] += diff_x;
+          diff_Ni[i][1] += diff_y;
+          diff_Ni[i][2] += diff_z;
+        } else if (mode & SIMPLE_PHI_MODE) {
+          diff_Ni[i][0] += diff_x;
+          diff_Ni[i][1] += diff_y;
+          diff_Ni[i][2] += diff_z;
+          diff_Ntotal[i][0] += 2.0 * diff_x;
+          diff_Ntotal[i][1] += 2.0 * diff_y;
+          diff_Ntotal[i][2] += 2.0 * diff_z;
+        }
       }
     }
 
@@ -635,28 +651,31 @@ void ComputeQ6SmoothAtom::compute_all()
     // dcij/dri = dqi/dri * gi + qi*dgi/dri (in the next section)
     // N_MODE : CV = sigma (gi*qi) --> dCV/dri = 2.0*gi*dqi/dri+...
     // PHI_MODE : Ni = gi*qi --> dNi/dri = gi*dqi/dri+...
-    for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
-      const double diff_x = diff_q6ms_real[i][indx][0] * gi_real[i][indx] +
+
+    if (!(mode & NO_DIFF)) {
+      for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
+        const double diff_x = diff_q6ms_real[i][indx][0] * gi_real[i][indx] +
           diff_q6ms_imag[i][indx][0] * gi_imag[i][indx];
-      const double diff_y = diff_q6ms_real[i][indx][1] * gi_real[i][indx] +
+        const double diff_y = diff_q6ms_real[i][indx][1] * gi_real[i][indx] +
           diff_q6ms_imag[i][indx][1] * gi_imag[i][indx];
-      const double diff_z = diff_q6ms_real[i][indx][2] * gi_real[i][indx] +
+        const double diff_z = diff_q6ms_real[i][indx][2] * gi_real[i][indx] +
           diff_q6ms_imag[i][indx][2] * gi_imag[i][indx];
-      if (mode & N_MODE) {
-        array_atom[i][diff_x_col] += 2.0 * diff_x;
-        array_atom[i][diff_y_col] += 2.0 * diff_y;
-        array_atom[i][diff_z_col] += 2.0 * diff_z;
-      } else if (mode & PHI_MODE) {
-        diff_Ni[i][0] += diff_x;
-        diff_Ni[i][1] += diff_y;
-        diff_Ni[i][2] += diff_z;
-      } else if (mode & SIMPLE_PHI_MODE) {
-        diff_Ni[i][0] += diff_x;
-        diff_Ni[i][1] += diff_y;
-        diff_Ni[i][2] += diff_z;
-        diff_Ntotal[i][0] += 2.0 * diff_x;
-        diff_Ntotal[i][1] += 2.0 * diff_y;
-        diff_Ntotal[i][2] += 2.0 * diff_z;
+        if (mode & N_MODE) {
+          array_atom[i][diff_x_col] += 2.0 * diff_x;
+          array_atom[i][diff_y_col] += 2.0 * diff_y;
+          array_atom[i][diff_z_col] += 2.0 * diff_z;
+        } else if (mode & PHI_MODE) {
+          diff_Ni[i][0] += diff_x;
+          diff_Ni[i][1] += diff_y;
+          diff_Ni[i][2] += diff_z;
+        } else if (mode & SIMPLE_PHI_MODE) {
+          diff_Ni[i][0] += diff_x;
+          diff_Ni[i][1] += diff_y;
+          diff_Ni[i][2] += diff_z;
+          diff_Ntotal[i][0] += 2.0 * diff_x;
+          diff_Ntotal[i][1] += 2.0 * diff_y;
+          diff_Ntotal[i][2] += 2.0 * diff_z;
+        }
       }
     }
 
@@ -666,78 +685,83 @@ void ComputeQ6SmoothAtom::compute_all()
      * there is a need for a reverse communication of the hj
      * dqi/drj is calculated on the fly
      */
-    for (int jj = 0; jj < jnum; jj++) {
-      int j = jlist[jj];
-      j &= NEIGHMASK;
-      double distx = x[j][0] - x[i][0];
-      double disty = x[j][1] - x[i][1];
-      double distz = x[j][2] - x[i][2];
-      double r = sqrt(distx * distx + disty * disty + distz * distz);
-      if (r < 1e-8 || r >= cutoff) continue;
-      std::array<double, N_DIM> distance = {distx, disty, distz};
 
-      calculate_dq6i_drj(distance, q6ms_real[i], q6ms_imag[i], inv_nbnum_i[i], inv_q6_norm_i[i],
+    if (!(mode & NO_DIFF)) { 
+      for (int jj = 0; jj < jnum; jj++) {
+        int j = jlist[jj];
+        j &= NEIGHMASK;
+        double distx = x[j][0] - x[i][0];
+        double disty = x[j][1] - x[i][1];
+        double distz = x[j][2] - x[i][2];
+        double r = sqrt(distx * distx + disty * disty + distz * distz);
+        if (r < 1e-8 || r >= cutoff) continue;
+        std::array<double, N_DIM> distance = {distx, disty, distz};
+
+        calculate_dq6i_drj(distance, q6ms_real[i], q6ms_imag[i], inv_nbnum_i[i], inv_q6_norm_i[i],
                          dqi_drj_real, dqi_drj_imag);
 
-      // adding hj components
-      if (mode & N_MODE) {
-        for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
-          for (int dim = 0; dim < N_DIM; dim++) {
-            hj[j][dim] += 2.0 * dqi_drj_real[indx][dim] * gi_real[i][indx];
-            hj[j][dim] += 2.0 * dqi_drj_imag[indx][dim] * gi_imag[i][indx];
+        // adding hj components
+        if (mode & N_MODE) {
+          for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
+            for (int dim = 0; dim < N_DIM; dim++) {
+              hj[j][dim] += 2.0 * dqi_drj_real[indx][dim] * gi_real[i][indx];
+              hj[j][dim] += 2.0 * dqi_drj_imag[indx][dim] * gi_imag[i][indx];
+            }
           }
-        }
-      } else if (mode & PHI_MODE) {
-        for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
-          for (int dim = 0; dim < N_DIM; dim++) {
-            hj[j][dim] += dqi_drj_real[indx][dim] * q6ms_real[i][indx];
-            hj[j][dim] += dqi_drj_imag[indx][dim] * q6ms_imag[i][indx];
+        } else if (mode & PHI_MODE) {
+          for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
+            for (int dim = 0; dim < N_DIM; dim++) {
+              hj[j][dim] += dqi_drj_real[indx][dim] * q6ms_real[i][indx];
+              hj[j][dim] += dqi_drj_imag[indx][dim] * q6ms_imag[i][indx];
+            }
           }
-        }
-      } else if (mode & SIMPLE_PHI_MODE) {
-        for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
-          for (int dim = 0; dim < N_DIM; dim++) {
-            hj[j][dim] += dqi_drj_real[indx][dim] * q6ms_real[i][indx];
-            hj[j][dim] += dqi_drj_imag[indx][dim] * q6ms_imag[i][indx];
-            hj2[j][dim] += 2.0 * dqi_drj_real[indx][dim] * gi_real[i][indx];
-            hj2[j][dim] += 2.0 * dqi_drj_imag[indx][dim] * gi_imag[i][indx];
+        } else if (mode & SIMPLE_PHI_MODE) {
+          for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
+            for (int dim = 0; dim < N_DIM; dim++) {
+              hj[j][dim] += dqi_drj_real[indx][dim] * q6ms_real[i][indx];
+              hj[j][dim] += dqi_drj_imag[indx][dim] * q6ms_imag[i][indx];
+              hj2[j][dim] += 2.0 * dqi_drj_real[indx][dim] * gi_real[i][indx];
+              hj2[j][dim] += 2.0 * dqi_drj_imag[indx][dim] * gi_imag[i][indx];
+            }
           }
         }
       }
     }
   }
 
-  // Transferring the hj from the ghost atoms
-  if (mode & SIMPLE_PHI_MODE) {
-    comm_reverse = S_REV_STRIDE;
-  } else {
-    comm_reverse = N_REV_STRIDE;
-  }
-  comm->reverse_comm(this);
+  if (!(mode & NO_DIFF)) {
+    // Transferring the hj from the ghost atoms
+    if (mode & SIMPLE_PHI_MODE) {
+      comm_reverse = S_REV_STRIDE;
+    } else {
+      comm_reverse = N_REV_STRIDE;
+    }
+    comm->reverse_comm(this);
 
-  // Adding the contribution of atom j to the diffN_total/dri or diffNi/diffri
-  for (ii = 0; ii < inum; ii++) {
-    i = ilist[ii];
-    if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
+    // Adding the contribution of atom j to the diffN_total/dri or diffNi/diffri
+    for (ii = 0; ii < inum; ii++) {
+      i = ilist[ii];
+      if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
 
-    const double diff_x = hj[i][0];
-    const double diff_y = hj[i][1];
-    const double diff_z = hj[i][2];
-    if (mode & N_MODE ) {
-      array_atom[i][diff_x_col] += diff_x;
-      array_atom[i][diff_y_col] += diff_y;
-      array_atom[i][diff_z_col] += diff_z;
-    } else if (mode & PHI_MODE) {
-      diff_Ni[i][0] += diff_x;
-      diff_Ni[i][1] += diff_y;
-      diff_Ni[i][2] += diff_z;
-    } else if (mode & SIMPLE_PHI_MODE) {
-      diff_Ni[i][0] += diff_x;
-      diff_Ni[i][1] += diff_y;
-      diff_Ni[i][2] += diff_z;
-      diff_Ntotal[i][0] += hj2[i][0];
-      diff_Ntotal[i][1] += hj2[i][1];
-      diff_Ntotal[i][2] += hj2[i][2];
+      const double diff_x = hj[i][0];
+      const double diff_y = hj[i][1];
+      const double diff_z = hj[i][2];
+      if (mode & N_MODE ) {
+        array_atom[i][diff_x_col] += diff_x;
+        array_atom[i][diff_y_col] += diff_y;
+        array_atom[i][diff_z_col] += diff_z;
+      } else if (mode & PHI_MODE) {
+        diff_Ni[i][0] += diff_x;
+        diff_Ni[i][1] += diff_y;
+        diff_Ni[i][2] += diff_z;
+      } else if (mode & SIMPLE_PHI_MODE) {
+        diff_Ni[i][0] += diff_x;
+        diff_Ni[i][1] += diff_y;
+        diff_Ni[i][2] += diff_z;
+        diff_Ntotal[i][0] += hj2[i][0];
+        diff_Ntotal[i][1] += hj2[i][1];
+        diff_Ntotal[i][2] += hj2[i][2];
+      }
     }
   }
 
@@ -800,7 +824,7 @@ void ComputeQ6SmoothAtom::compute_all()
      * step 0
      */
     forward_mode = N_TRANSFER;
-    comm_forward = N_STRIDE;
+    comm_forward = N_FOR_STRIDE;
     comm->forward_comm(this);
 
     for (ii = 0; ii < inum; ii++) {
@@ -834,7 +858,7 @@ void ComputeQ6SmoothAtom::compute_all()
      * forward comm Gi
      */
     forward_mode = G_TRANSFER;
-    comm_forward = G_STRIDE;
+    comm_forward = G_FOR_STRIDE;
     comm->forward_comm(this);
   }
 
@@ -847,6 +871,9 @@ void ComputeQ6SmoothAtom::compute_all()
 
       // phi[i] = Ni[i] * sigma(Kij*Ni[j]) = Ni[i]*Gi[i]
       array_atom[i][val_col] += Ni[i] * Gi[i];
+
+      // The rest of the loop is related to the diff
+      if (mode & NO_DIFF) continue; 
 
       /*
        * step 3 - Gi *diffNi/diffri
@@ -1029,26 +1056,28 @@ void ComputeQ6SmoothAtom::compute_all()
       }
     }
 
-    /*
-     * step 5
-     * Transferring the hj from the ghost atoms
-     */
-    comm_reverse = N_REV_STRIDE;
-    comm->reverse_comm(this);
-    for (ii = 0; ii < inum; ii++) {
-      i = ilist[ii];
-      if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
-
+    if (!(mode & NO_DIFF)) {
       /*
-       * step 6
+       * step 5
+       * Transferring the hj from the ghost atoms
        */
+      comm_reverse = N_REV_STRIDE;
+      comm->reverse_comm(this);
+      for (ii = 0; ii < inum; ii++) {
+        i = ilist[ii];
+        if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
 
-      const double diff_x = hj[i][0];
-      const double diff_y = hj[i][1];
-      const double diff_z = hj[i][2];
-      array_atom[i][diff_x_col] += 2.0 * diff_x;
-      array_atom[i][diff_y_col] += 2.0 * diff_y;
-      array_atom[i][diff_z_col] += 2.0 * diff_z;
+        /*
+         * step 6
+         */
+
+        const double diff_x = hj[i][0];
+        const double diff_y = hj[i][1];
+        const double diff_z = hj[i][2];
+        array_atom[i][diff_x_col] += 2.0 * diff_x;
+        array_atom[i][diff_y_col] += 2.0 * diff_y;
+        array_atom[i][diff_z_col] += 2.0 * diff_z;
+      }
     }
   }
 
@@ -1059,9 +1088,11 @@ void ComputeQ6SmoothAtom::compute_all()
       
       array_atom[i][val_col] += Ni[i]*Gi[i];
 
-      array_atom[i][diff_x_col] += 2.0*(diff_Ni[i][0]*Gi[i] + Ni[i]*(diff_Ntotal[i][0]-diff_Ni[i][0]));
-      array_atom[i][diff_y_col] += 2.0*(diff_Ni[i][1]*Gi[i] + Ni[i]*(diff_Ntotal[i][1]-diff_Ni[i][1]));
-      array_atom[i][diff_z_col] += 2.0*(diff_Ni[i][2]*Gi[i] + Ni[i]*(diff_Ntotal[i][2]-diff_Ni[i][2]));
+      if (!(mode & NO_DIFF)) {
+        array_atom[i][diff_x_col] += 2.0*(diff_Ni[i][0]*Gi[i] + Ni[i]*(diff_Ntotal[i][0]-diff_Ni[i][0]));
+        array_atom[i][diff_y_col] += 2.0*(diff_Ni[i][1]*Gi[i] + Ni[i]*(diff_Ntotal[i][1]-diff_Ni[i][1]));
+        array_atom[i][diff_z_col] += 2.0*(diff_Ni[i][2]*Gi[i] + Ni[i]*(diff_Ntotal[i][2]-diff_Ni[i][2]));
+      }
     }
   }
 
@@ -1073,9 +1104,18 @@ void ComputeQ6SmoothAtom::compute_all()
 
 
   double num_double = static_cast<double>(num_selected_all);
-  double scaling = num_double >= 2 ? 2.0 / (num_double * (num_double - 1.0)) : 0.0;
+  double scaling = 0.0;
+  if (mode & N_MODE)
+    scaling = (num_double >= 1 ? 1.0/num_double : 0.0);
+  else if ((mode & PHI_MODE) || (mode & SIMPLE_PHI_MODE))
+    scaling = (num_double >= 2 ? 2.0 / (num_double * (num_double - 1.0)) : 0.0);
   phi_sum_all *= scaling;
-  scalar = phi_sum_all;
+  Q6_sum_all *= scaling;
+  
+  if (mode & N_MODE)
+    scalar = Q6_sum_all;
+  else if ((mode & PHI_MODE) || (mode & SIMPLE_PHI_MODE))
+    scalar = phi_sum_all;
 
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
@@ -1084,35 +1124,35 @@ void ComputeQ6SmoothAtom::compute_all()
     if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
 
     array_atom[i][val_col] *= scaling;
-    array_atom[i][diff_x_col] *= scaling;
-    array_atom[i][diff_y_col] *= scaling;
-    array_atom[i][diff_z_col] *= scaling;
-    double x_comp = array_atom[i][diff_x_col];
-    double y_comp = array_atom[i][diff_y_col];
-    double z_comp = array_atom[i][diff_z_col];
-    double slope = std::sqrt(x_comp * x_comp + y_comp * y_comp + z_comp * z_comp);
-    if (slope < min_slope) {
-      const double target = std::abs(rng->gaussian()) * min_slope; // >= 0
-      // slope is under radical so it will never be negative..
-      if (slope <= 0.0) {
-        /*if (comm->me == 0)
-          error->warning(FLERR,"Dead gradient of zero in all the direction! \
+    if (!(mode & NO_DIFF)) {
+      array_atom[i][diff_x_col] *= scaling;
+      array_atom[i][diff_y_col] *= scaling;
+      array_atom[i][diff_z_col] *= scaling;
+      double x_comp = array_atom[i][diff_x_col];
+      double y_comp = array_atom[i][diff_y_col];
+      double z_comp = array_atom[i][diff_z_col];
+      double slope = std::sqrt(x_comp * x_comp + y_comp * y_comp + z_comp * z_comp);
+      if (slope < min_slope) {
+        const double target = std::abs(rng->gaussian()) * min_slope; // >= 0
+        // slope is under radical so it will never be negative..
+        if (slope <= 0.0) {
+          /*if (comm->me == 0)
+           error->warning(FLERR,"Dead gradient of zero in all the direction! \
                                  Setting a random value in the x-direction!");
-        */
-        int dirs[3] = {diff_x_col,diff_y_col,diff_z_col};
-        int idx = (static_cast<int>(std::abs(rng->uniform()*100.0))) %3;
-        array_atom[i][dirs[idx]] = target;
-      } else {
-        const double s = target / slope;
-        array_atom[i][diff_x_col] *= s;
-        array_atom[i][diff_y_col] *= s;
-        array_atom[i][diff_z_col] *= s;
+          */
+          int dirs[3] = {diff_x_col,diff_y_col,diff_z_col};
+          int idx = (static_cast<int>(std::abs(rng->uniform()*100.0))) %3;
+          array_atom[i][dirs[idx]] = target;
+        } else {
+          const double s = target / slope;
+          array_atom[i][diff_x_col] *= s;
+          array_atom[i][diff_y_col] *= s;
+          array_atom[i][diff_z_col] *= s;
+        }
       }
     }
 
   }
-
-
 
   //scalar = num_selected_all ? Q6_sum_all / static_cast<double>(num_selected_all) :0.0;
 }
@@ -1126,7 +1166,7 @@ int ComputeQ6SmoothAtom::pack_forward_comm(int n, int *list, double *buf, int /*
   m = 0;
 
   if (forward_mode & Q6_TRANSFER) {
-    if (comm_forward != Q6_STRIDE)
+    if (comm_forward != Q6_FOR_STRIDE)
       error->one(FLERR, "Wrong value in the comm_forward {}", comm_forward);
     for (int i = 0; i < n; i++) {
       j = list[i];
@@ -1136,14 +1176,14 @@ int ComputeQ6SmoothAtom::pack_forward_comm(int n, int *list, double *buf, int /*
       }
     }
   } else if (forward_mode & N_TRANSFER) {
-    if (comm_forward != N_STRIDE)
+    if (comm_forward != N_FOR_STRIDE)
       error->one(FLERR, "Wrong value in the comm_forward {}", comm_forward);
     for (int i = 0; i < n; i++) {
       j = list[i];
       buf[m++] = Ni[j];
     }
   } else if (forward_mode & G_TRANSFER) {
-    if (comm_forward != G_STRIDE)
+    if (comm_forward != G_FOR_STRIDE)
       error->one(FLERR, "Wrong value in the comm_forward {}", comm_forward);
     for (int i = 0; i < n; i++) {
       j = list[i];
@@ -1165,7 +1205,7 @@ void ComputeQ6SmoothAtom::unpack_forward_comm(int n, int first, double *buf)
   last = first + n;
 
   if (forward_mode & Q6_TRANSFER) {
-    if (comm_forward != Q6_STRIDE)
+    if (comm_forward != Q6_FOR_STRIDE)
       error->one(FLERR, "Wrong value in the comm_forward {}", comm_forward);
     for (j = first; j < last; j++) {
       for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
@@ -1174,11 +1214,11 @@ void ComputeQ6SmoothAtom::unpack_forward_comm(int n, int first, double *buf)
       }
     }
   } else if (forward_mode & N_TRANSFER) {
-    if (comm_forward != N_STRIDE)
+    if (comm_forward != N_FOR_STRIDE)
       error->one(FLERR, "Wrong value in the comm_forward {}", comm_forward);
     for (j = first; j < last; j++) { Ni[j] = buf[m++]; }
   } else if (forward_mode & G_TRANSFER) {
-    if (comm_forward != G_STRIDE)
+    if (comm_forward != G_FOR_STRIDE)
       error->one(FLERR, "Wrong value in the comm_forward {}", comm_forward);
     for (j = first; j < last; j++) { Gi[j] = buf[m++]; }
   } else 
@@ -1245,7 +1285,7 @@ void ComputeQ6SmoothAtom::orient(const double &input, const double &beta, const 
   diff = beta * output * (1.0 - output);
 
   // avoiding dead gradient
-  if (std::abs(diff) <= min_slope) diff = min_slope;
+  if (std::abs(diff) <= min_slope) diff = (input >= x0 ? -min_slope : min_slope);
 }
 
 /* --------------------------------------------------------------------- */
