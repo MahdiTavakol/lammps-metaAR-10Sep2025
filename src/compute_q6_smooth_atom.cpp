@@ -32,7 +32,7 @@
 
 using namespace LAMMPS_NS;
 
-enum { Q6_TRANSFER = 1 << 1, N_TRANSFER = 1 << 2, G_TRANSFER = 1 << 3 };
+enum { Q6_TRANSFER = 1 << 0, N_TRANSFER = 1 << 1, G_TRANSFER = 1 << 2 };
 
 enum { N_MODE = 1 << 0, PHI_MODE = 1 << 1, SIMPLE_PHI_MODE = 1 << 2 };
 
@@ -40,7 +40,7 @@ enum { Q6_STRIDE = 26, N_STRIDE = 1, G_STRIDE = 1 };
 
 enum { N_REV_STRIDE = 3, S_REV_STRIDE=6};
 
-enum { NONE = 0, S0_SW=1<<1, S1_SW=1<<2, S2_SW=1<<3, S3_SW=1<<4};
+enum { NONE = 0, S0_SW=1<<0, S1_SW=1<<1, S2_SW=1<<2, S3_SW=1<<3};
 
 // parameter to avoid dead gradient issue.
 static double constexpr min_slope = 0.02;
@@ -155,10 +155,10 @@ void ComputeQ6SmoothAtom::init()
   rng = std::make_unique<RanPark>(lmp, 11111);
 
   // All the switches are off
-  if ((switch_flag & !S0_SW) && 
-      (switch_flag & !S1_SW) &&
-      (switch_flag & !S2_SW) &&
-      (switch_flag & !S2_SW) && 
+  if (!(switch_flag & S0_SW) && 
+      !(switch_flag & S1_SW) &&
+      !(switch_flag & S2_SW) &&
+      !(switch_flag & S2_SW) && 
       (mode & PHI_MODE)) {
     if (comm->me == 0) {
       error->warning(FLERR,"Running the faster version of the phi mode!");
