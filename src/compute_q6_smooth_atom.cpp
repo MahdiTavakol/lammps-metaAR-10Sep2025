@@ -82,39 +82,29 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
     } else if (strcmp(arg[iarg], "phi") == 0) {
       mode = PHI_MODE;
       iarg++;
-    } else if (strcmp(arg[iarg], "S0") == 0) {
-      if (iarg + 1 >= narg) error->all(FLERR, "Missing on/off after S0");
-      if (strcmp(arg[iarg+1],"on") == 0)
-        switch_flag |= S0_SW;
-      else if (strcmp(arg[iarg+1],"off") == 0)
-        switch_flag &= ~S0_SW;
-      else error->all(FLERR, "Illegal compute q6-smooth/atom command");
-      iarg+=2;
+    } else if (strcmp(arg[iarg], "S0_off") == 0) {
+      switch_flag &= ~S0_SW;
+      iarg++;
+    } else if (strcmp(arg[iarg], "S1_off") == 0) {
+      switch_flag &= ~S1_SW;
+      iarg++;
+    } else if (strcmp(arg[iarg], "S2_off") == 0) {
+      switch_flag &= ~S2_SW;
+      iarg++;
+    } else if (strcmp(arg[iarg], "S3_off") == 0) {
+      switch_flag &= ~S3_SW;
+      iarg++;
     } else if (strcmp(arg[iarg], "S1") == 0) {
-      if (iarg + 1 >= narg) error->all(FLERR, "Missing on/off after S1");
-      if (strcmp(arg[iarg+1],"on") == 0)
-        switch_flag |= S1_SW;
-      else if (strcmp(arg[iarg+1],"off") == 0)
-        switch_flag &= ~S1_SW;
-      else error->all(FLERR, "Illegal compute q6-smooth/atom command");
-      iarg+=2;
+      if (iarg + 2 >= narg) error->all(FLERR, "Missing parameters after S1");
+      beta1 = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
+      x01 = utils::numeric(FLERR, arg[iarg + 2], false, lmp);
+      iarg+=3;
     } else if (strcmp(arg[iarg], "S2") == 0) {
-      if (iarg + 1 >= narg) error->all(FLERR, "Missing on/off after S2");
-      if (strcmp(arg[iarg+1],"on") == 0)
-        switch_flag |= S2_SW;
-      else if (strcmp(arg[iarg+1],"off") == 0)
-        switch_flag &= ~S2_SW;
-      else error->all(FLERR, "Illegal compute q6-smooth/atom command");
-      iarg+=2;
-    } else if (strcmp(arg[iarg], "S3") == 0) {
-      if (iarg + 1 >= narg) error->all(FLERR, "Missing on/off after S3");
-      if (strcmp(arg[iarg+1],"on") == 0)
-        switch_flag |= S3_SW;
-      else if (strcmp(arg[iarg+1],"off") == 0)
-        switch_flag &= ~S3_SW;
-      else error->all(FLERR, "Illegal compute q6-smooth/atom command");
-      iarg+=2;
-    } else
+      if (iarg + 2 >= narg) error->all(FLERR, "Missing parametersafter S2");
+      beta2 = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
+      x02 = utils::numeric(FLERR, arg[iarg + 2], false, lmp);
+      iarg+=3;
+    }else
       error->all(FLERR, "Illegal compute q6-smooth/atom command");
   }
 }
@@ -1079,10 +1069,8 @@ void ComputeQ6SmoothAtom::compute_all()
   MPI_Allreduce(&phi_sum, &phi_sum_all, 1, MPI_DOUBLE, MPI_SUM, world);
   MPI_Allreduce(&num_selected, &num_selected_all, 1, MPI_INT, MPI_SUM, world);
 
-  double total_force[N_DIM];
-  double total_force_all[N_DIM];
 
-  std::fill_n(total_force,N_DIM,0.0);
+
 
   double num_double = static_cast<double>(num_selected_all);
   double scaling = num_double >= 2 ? 2.0 / (num_double * (num_double - 1.0)) : 0.0;
@@ -1122,29 +1110,9 @@ void ComputeQ6SmoothAtom::compute_all()
       }
     }
 
-    total_force[0] += array_atom[i][diff_x_col];
-    total_force[1] += array_atom[i][diff_y_col];
-    total_force[2] += array_atom[i][diff_z_col];
   }
 
-  // zeroing out the total force;
 
-  MPI_Allreduce(total_force,total_force_all,N_DIM,MPI_DOUBLE,MPI_SUM,world);
-
-  double delta_force[3];
-  for (int dim = 0; dim < N_DIM; dim++)
-    delta_force[dim] = total_force_all[dim] / num_double;
-
-  for (ii = 0; ii < inum; ii++) {
-    i = ilist[ii];
-    jnum = numneigh[i];
-    jlist = firstneigh[i];
-    if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
-
-    array_atom[i][diff_x_col] += -delta_force[0];
-    array_atom[i][diff_y_col] += -delta_force[1];
-    array_atom[i][diff_z_col] += -delta_force[2];
-  }
 
   //scalar = num_selected_all ? Q6_sum_all / static_cast<double>(num_selected_all) :0.0;
 }
