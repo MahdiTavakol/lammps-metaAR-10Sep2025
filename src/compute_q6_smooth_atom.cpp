@@ -1087,12 +1087,16 @@ void ComputeQ6SmoothAtom::compute_all()
       const double target = std::abs(rng->gaussian()) * min_slope; // >= 0
       // slope is under radical so it will never be negative..
       if (slope <= 0.0) {
-        if (comm->me == 0)
+        /*if (comm->me == 0)
           error->warning(FLERR,"Dead gradient of zero in all the direction! \
                                  Setting a random value in the x-direction!");
-        array_atom[i][diff_x_col] = target;
-        array_atom[i][diff_y_col] = 0.0;
-        array_atom[i][diff_z_col] = 0.0;
+        */
+        int direction = (static_cast<int>(std::abs(rng->gaussian()*100.0))) %3+1;
+        int col;
+        if (direction == 1) col = diff_x_col;
+        else if (direction == 2) col = diff_y_col;
+        else if (direction == 3) col = diff_z_col;
+        array_atom[i][col] = target;
       } else {
         const double s = target / slope;
         array_atom[i][diff_x_col] *= s;
