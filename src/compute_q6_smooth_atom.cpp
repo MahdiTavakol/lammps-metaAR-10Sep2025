@@ -80,7 +80,7 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
       mode |= NO_DIFF;
       iarg++;
     } else if (strcmp(arg[iarg], "phi") == 0) {
-      mode |= PHI_MODE;
+      mode = (mode & NO_DIFF) | PHI_MODE;
       iarg++;
     } else if (strcmp(arg[iarg], "S0_off") == 0) {
       switch_flag &= ~S0_SW;
