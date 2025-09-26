@@ -34,9 +34,11 @@ using namespace LAMMPS_NS;
 
 enum { Q6_TRANSFER = 1 << 1, N_TRANSFER = 1 << 2, G_TRANSFER = 1 << 3 };
 
-enum { N_MODE = 0, PHI_MODE = 1 << 1 };
+enum { N_MODE = 0, PHI_MODE = 1 << 1, SIMPLE_PHI_MODE = 1 << 2 };
 
 enum { Q6_STRIDE = 26, N_STRIDE = 1, G_STRIDE = 1 };
+
+enum { N_REV_STRIDE = 3, S_REV_STRIDE=6};
 
 enum { NONE = 0, S0_SW=1<<1, S1_SW=1<<2, S2_SW=1<<3, S3_SW=1<<4};
 
@@ -49,8 +51,8 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
     ComputeDiffAtom{lmp, narg, arg}, mode{N_MODE}, chosen_type{-1}, cutoff{3.2},
     q6ms_real{nullptr}, q6ms_imag{nullptr}, diff_q6ms_real{nullptr}, diff_q6ms_imag{nullptr},
     inv_q6_norm_i{nullptr}, inv_nbnum_i{nullptr},
-    Ni{nullptr}, ds2i{nullptr}, diff_Ni{nullptr}, gi_real{nullptr},
-    gi_imag{nullptr}, Gi{nullptr}, Cjj{nullptr}, hj{nullptr}, forward_mode{Q6_TRANSFER},
+    Ni{nullptr}, ds2i{nullptr}, diff_Ni{nullptr}, diff_Ntotal{nullptr}, gi_real{nullptr},
+    gi_imag{nullptr}, Gi{nullptr}, Cjj{nullptr}, hj{nullptr}, hj2{nullptr}, forward_mode{Q6_TRANSFER},
     s0j{nullptr}, s1j{nullptr}, ds0j{nullptr}, ds1j{nullptr}, dqi_drj_real{nullptr}, dqi_drj_imag{
                                                                                          nullptr}
 {
@@ -59,7 +61,11 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
 
   // before calling the comm->forward this parameter is set since it has two different values.
   comm_forward = Q6_STRIDE;
-  bool switches[4] = {true,true,true,true};
+  comm_reverse = N_REV_STRIDE;
+  
+
+  switch_flag |= S0_SW;
+  switch_flag |= S1_SW;
   switch_flag |= S2_SW;
   switch_flag |= S3_SW;
 
@@ -104,11 +110,13 @@ void ComputeQ6SmoothAtom::init()
   memory->create(Ni, nmax, "compute_q6_smooth_atom:Ni");
   memory->create(ds2i, nmax, "compute_q6_smooth:ds2i");
   memory->create(diff_Ni, nmax, N_DIM, "compute_q6_smooth_atom:diff_Ni");
+  memory->create(diff_Ntotal, nmax, N_DIM, "compute_q6_smooth_atom:diff_Ntotal");
   memory->create(gi_real, nmax, Q6_ARRAY_SIZE, "compute_q6_smooth_atom:gi_real");
   memory->create(gi_imag, nmax, Q6_ARRAY_SIZE, "compute_q6_smooth_atom:gi_imag");
   memory->create(Gi, nmax, "compute_q6_smooth_atom:Gi");
   memory->create(Cjj, nmax, "compute_q6_smooth_atom:Cjj");
   memory->create(hj, nmax, N_DIM, "compute_q6_smooth_atom:hj");
+  memory->create(hj2, nmax, N_DIM, "compute_q6_smooth_atom:hj2");
   memory->create(s0j, nmax, "compute_q6_smooth_atom:s0j");
   memory->create(s1j, nmax, "compute_q6_smooth_atom:s1j");
   memory->create(ds0j, nmax, "compute_q6_smooth_atom:ds0j");
@@ -120,6 +128,10 @@ void ComputeQ6SmoothAtom::init()
   request->cutoff = cutoff;
   // Initializing the random number generation object
   rng = std::make_unique<RanPark>(lmp, 11111);
+
+  // All the switches are off
+  if (switch_flag == 0)
+    mode = SIMPLE_PHI_MODE;
 }
 
 /* ----------------------------------------------------------------------- */
@@ -135,17 +147,42 @@ ComputeQ6SmoothAtom::~ComputeQ6SmoothAtom()
   if (Ni) memory->destroy(Ni);
   if (ds2i) memory->destroy(ds2i);
   if (diff_Ni) memory->destroy(diff_Ni);
+  if (diff_Ntotal) memory->destroy(diff_Ntotal);
   if (gi_real) memory->destroy(gi_real);
   if (gi_imag) memory->destroy(gi_imag);
   if (Gi) memory->destroy(Gi);
   if (Cjj) memory->destroy(Cjj);
   if (hj) memory->destroy(hj);
+  if (hj2) memory->destroy(hj2);
   if (s0j) memory->destroy(s0j);
   if (s1j) memory->destroy(s1j);
   if (ds0j) memory->destroy(ds0j);
   if (ds1j) memory->destroy(ds1j);
   if (dqi_drj_real) memory->destroy(dqi_drj_real);
   if (dqi_drj_imag) memory->destroy(dqi_drj_imag);
+
+  q6ms_real = nullptr;
+  q6ms_imag = nullptr;
+  diff_q6ms_real = nullptr;
+  diff_q6ms_imag = nullptr;
+  inv_q6_norm_i = nullptr;
+  inv_nbnum_i = nullptr;
+  Ni = nullptr;
+  ds2i = nullptr;
+  diff_Ni = nullptr;
+  diff_Ntotal = nullptr;
+  gi_real = nullptr;
+  gi_imag = nullptr;
+  Gi = nullptr;
+  Cjj = nullptr;
+  hj = nullptr;
+  hj2 = nullptr;
+  s0j = nullptr;
+  s1j = nullptr;
+  ds0j = nullptr;
+  ds1j = nullptr;
+  dqi_drj_real = nullptr;
+  dqi_drj_imag = nullptr;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -174,11 +211,13 @@ void ComputeQ6SmoothAtom::compute_all()
     memory->grow(Ni, nmax, "compute_q6_smooth_atom:Ni");
     memory->grow(ds2i, nmax, "compute_q6_smooth_atom:ds2i");
     memory->grow(diff_Ni, nmax, N_DIM, "compute_q6_smooth_atom:diff_Ni");
+    memory->grow(diff_Ntotal, nmax, N_DIM, "compute_q6_smooth_atom:diff_Ntotal");
     memory->grow(gi_real, nmax, Q6_ARRAY_SIZE, "compute_q6_smooth_atom:gi_real");
     memory->grow(gi_imag, nmax, Q6_ARRAY_SIZE, "compute_q6_smooth_atom:gi_imag");
     memory->grow(Gi, nmax, "compute_q6_smooth_atom:Gi");
     memory->grow(Cjj, nmax, "compute_q6_smooth_atom:Cjj");
     memory->grow(hj, nmax, N_DIM, "compute_q6_smooth_atom:hj");
+    memory->grow(hj2, nmax, N_DIM, "compute_q6_smooth_atom:hj2");
     memory->grow(s0j, nmax, "compute_q6_smooth_atom:s0j");
     memory->grow(s1j, nmax, "compute_q6_smooth_atom:s1j");
     memory->grow(ds0j, nmax, "compute_q6_smooth_atom:ds0j");
@@ -211,6 +250,7 @@ void ComputeQ6SmoothAtom::compute_all()
   std::fill_n(&gi_real[0][0], nmax * Q6_ARRAY_SIZE, 0.0);
   std::fill_n(&gi_imag[0][0], nmax * Q6_ARRAY_SIZE, 0.0);
   std::fill_n(&diff_Ni[0][0], nmax * N_DIM, 0.0);
+  std::fill_n(&diff_Ntotal[0][0], nmax * N_DIM, 0.0);
   std::fill_n(Gi, nmax, 0.0);
   std::fill_n(&hj[0][0], nmax * N_DIM, 0.0);
 
@@ -548,6 +588,13 @@ void ComputeQ6SmoothAtom::compute_all()
         diff_Ni[i][0] += diff_x;
         diff_Ni[i][1] += diff_y;
         diff_Ni[i][2] += diff_z;
+      } else if (mode & SIMPLE_PHI_MODE) {
+        diff_Ni[i][0] += diff_x;
+        diff_Ni[i][1] += diff_y;
+        diff_Ni[i][2] += diff_z;
+        diff_Ntotal[i][0] += 2.0 * diff_x;
+        diff_Ntotal[i][1] += 2.0 * diff_y;
+        diff_Ntotal[i][2] += 2.0 * diff_z;
       }
     }
 
@@ -579,6 +626,13 @@ void ComputeQ6SmoothAtom::compute_all()
         diff_Ni[i][0] += diff_x;
         diff_Ni[i][1] += diff_y;
         diff_Ni[i][2] += diff_z;
+      } else if (mode & SIMPLE_PHI_MODE) {
+        diff_Ni[i][0] += diff_x;
+        diff_Ni[i][1] += diff_y;
+        diff_Ni[i][2] += diff_z;
+        diff_Ntotal[i][0] += 2.0 * diff_x;
+        diff_Ntotal[i][1] += 2.0 * diff_y;
+        diff_Ntotal[i][2] += 2.0 * diff_z;
       }
     }
 
@@ -616,11 +670,25 @@ void ComputeQ6SmoothAtom::compute_all()
             hj[j][dim] += dqi_drj_imag[indx][dim] * q6ms_imag[i][indx];
           }
         }
+      } else if (mode & SIMPLE_PHI_MODE) {
+        for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
+          for (int dim = 0; dim < N_DIM; dim++) {
+            hj[j][dim] += dqi_drj_real[indx][dim] * q6ms_real[i][indx];
+            hj[j][dim] += dqi_drj_imag[indx][dim] * q6ms_imag[i][indx];
+            hj2[j][dim] += 2.0 * dqi_drj_real[indx][dim] * gi_real[i][indx];
+            hj2[j][dim] += 2.0 * dqi_drj_imag[indx][dim] * gi_imag[i][indx];
+          }
+        }
       }
     }
   }
 
   // Transfering the hj from the ghost atoms
+  if (mode & SIMPLE_PHI_MODE) {
+    comm_reverse = S_REV_STRIDE;
+  } else {
+    comm_reverse = N_REV_STRIDE;
+  }
   comm->reverse_comm(this);
 
   // Adding the contribution of atom j to the diffN_total/dri or diffNi/diffri
@@ -631,7 +699,7 @@ void ComputeQ6SmoothAtom::compute_all()
     const double diff_x = hj[i][0];
     const double diff_y = hj[i][1];
     const double diff_z = hj[i][2];
-    if (mode & N_MODE) {
+    if (mode & N_MODE ) {
       array_atom[i][diff_x_col] += diff_x;
       array_atom[i][diff_y_col] += diff_y;
       array_atom[i][diff_z_col] += diff_z;
@@ -639,6 +707,13 @@ void ComputeQ6SmoothAtom::compute_all()
       diff_Ni[i][0] += diff_x;
       diff_Ni[i][1] += diff_y;
       diff_Ni[i][2] += diff_z;
+    } else if (mode & SIMPLE_PHI_MODE) {
+      diff_Ni[i][0] += diff_x;
+      diff_Ni[i][1] += diff_y;
+      diff_Ni[i][2] += diff_z;
+      diff_Ntotal[i][0] += hj2[i][0];
+      diff_Ntotal[i][1] += hj2[i][1];
+      diff_Ntotal[i][2] += hj2[i][2];
     }
   }
 
@@ -673,23 +748,30 @@ void ComputeQ6SmoothAtom::compute_all()
     */
 
   /*
-     * This is an example
-     * G2*dN2/dr1 = G2*(dq2*(q1+q3)+q2*(dq1+dq3))
-     * G3*dN3/dr1 = G3*N1*(dq3*(q1+q2+q4)+q3*(dq1+dq2+dq4))
-     * G4*dN4/dr1 = G4)*N1(dq4*(q1+q3)+q4*(dq1+dq3))
-     * 4A:  G2*dN2/dr1 += G2*dq1*q2 i == 1
-     *      G3*dN3/dr1 += G3*dq1*q3 i == 1
-     *      G4*dN4/dr1 += G4*dq1*q4 i == 1
-     * 4B:  G2*dN2/dr1 += G2*dq2*(q1+q3) i == 2 j == 1
-     *      G3*dN3/dr1 += G3*dq3*(q1+q2+q4) i == 3 j == 1
-     *      G4*dN4/dr1 += G4*dq4*(q1+q3) i == 4 j == 1
-     * 4C:  G2*dN2/dr1 += G2*q2*(dq3) i == 2
-     *      G3*dN3/dr1 += G3*q3*(dq2+dq4) i == 3
-     *      G4*dN4/dr1 += G4*q4*(dq3) i == 4
-     * 
-     */
+   * This is an example
+   * G2*dN2/dr1 = G2*(dq2*(q1+q3)+q2*(dq1+dq3))
+   * G3*dN3/dr1 = G3*N1*(dq3*(q1+q2+q4)+q3*(dq1+dq2+dq4))
+   * G4*dN4/dr1 = G4)*N1(dq4*(q1+q3)+q4*(dq1+dq3))
+   * 4A:  G2*dN2/dr1 += G2*dq1*q2 i == 1
+   *      G3*dN3/dr1 += G3*dq1*q3 i == 1
+   *      G4*dN4/dr1 += G4*dq1*q4 i == 1
+   * 4B:  G2*dN2/dr1 += G2*dq2*(q1+q3) i == 2 j == 1
+   *      G3*dN3/dr1 += G3*dq3*(q1+q2+q4) i == 3 j == 1
+   *      G4*dN4/dr1 += G4*dq4*(q1+q3) i == 4 j == 1
+   * 4C:  G2*dN2/dr1 += G2*q2*(dq3) i == 2
+   *      G3*dN3/dr1 += G3*q3*(dq2+dq4) i == 3
+   *      G4*dN4/dr1 += G4*q4*(dq3) i == 4
+   * 
+   */
 
-  if (mode & PHI_MODE) {
+  /*
+   * A special case is the case where all the switches are off.
+   * In this case diffphi/diffri = Gi*diffNi/diffri + (diffN_total/diffri - diffNi/diffri)
+   * This implementation is more efficient than the general case.
+   * As we have diffN_total/diffri we just need the Gi.
+   */ 
+
+  if (mode & PHI_MODE  || mode & SIMPLE_PHI_MODE) {
     /*
      * step 0
      */
@@ -730,7 +812,9 @@ void ComputeQ6SmoothAtom::compute_all()
     forward_mode = G_TRANSFER;
     comm_forward = G_STRIDE;
     comm->forward_comm(this);
-    
+  }
+
+  if (mode & PHI_MODE) {    
     for (ii = 0; ii < inum; ii++) {
       i = ilist[ii];
       jnum = numneigh[i];
@@ -920,15 +1004,13 @@ void ComputeQ6SmoothAtom::compute_all()
           hj[j][dim] += wpair*distance[dim]/r;
       }
     }
-  }
 
-  /*
-   * step 5
-   */
-  // Transfering the hj from the ghost atoms
-  comm->reverse_comm(this);
-
-  if (mode & PHI_MODE) {
+    /*
+     * step 5
+     * Transfering the hj from the ghost atoms
+     */
+    comm_reverse = N_REV_STRIDE;
+    comm->reverse_comm(this);
     for (ii = 0; ii < inum; ii++) {
       i = ilist[ii];
       if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
@@ -944,6 +1026,12 @@ void ComputeQ6SmoothAtom::compute_all()
       array_atom[i][diff_y_col] += 2.0 * diff_y;
       array_atom[i][diff_z_col] += 2.0 * diff_z;
     }
+  }
+
+  if (mode & SIMPLE_PHI_MODE) {
+    array_atom[i][diff_x_col] = diff_Ni[i][0]*Gi[i] + Ni[i]*(diff_Ntotal[i][0]-diff_Ni[i][0]);
+    array_atom[i][diff_x_col] = diff_Ni[i][1]*Gi[i] + Ni[i]*(diff_Ntotal[i][1]-diff_Ni[i][1]);
+    array_atom[i][diff_x_col] = diff_Ni[i][2]*Gi[i] + Ni[i]*(diff_Ntotal[i][2]-diff_Ni[i][2]);
   }
 
   MPI_Allreduce(&Q6_sum, &Q6_sum_all, 1, MPI_DOUBLE, MPI_SUM, world);
@@ -1066,8 +1154,19 @@ int ComputeQ6SmoothAtom::pack_reverse_comm(int n, int first, double *buf)
   int i, m, last;
   m = 0;
   last = first + n;
-  for (i = first; i < last; i++) {
-    for (int k = 0; k < N_DIM; k++) buf[m++] = hj[i][k];
+  if ( ((mode & SIMPLE_PHI_MODE) && (comm_reverse != S_REV_STRIDE)) ||
+       (!(mode & SIMPLE_PHI_MODE) && (comm_reverse != N_REV_STRIDE)) )
+       error->one(FLERR, "Wrong value in the comm_reverse {}", comm_reverse);
+
+  if (mode & SIMPLE_PHI_MODE) {
+    for (i = first; i < last; i++) {
+      for (int dim = 0; dim < N_DIM; dim++) buf[m++] = hj[i][dim];
+      for (int dim = 0; dim < N_DIM; dim++) buf[m++] = hj2[i][dim];
+    }
+  } else {
+    for (i = first; i < last; i++) {
+      for (int dim = 0; dim < N_DIM; dim++) buf[m++] = hj[i][dim];
+    }
   }
   return m;
 }
@@ -1079,9 +1178,17 @@ void ComputeQ6SmoothAtom::unpack_reverse_comm(int n, int *list, double *buf)
   int i, j, m;
 
   m = 0;
-  for (i = 0; i < n; i++) {
-    j = list[i];
-    for (int k = 0; k < N_DIM; k++) hj[j][k] += buf[m++];
+  if (mode & SIMPLE_PHI_MODE) {
+    for (i = 0; i < n; i++) {
+      j = list[i];
+      for (int dim = 0; dim < N_DIM; dim++) hj[j][dim] += buf[m++];
+      for (int dim = 0; dim < N_DIM; dim++) hj2[j][dim] += buf[m++];
+    }
+  } else {
+    for (i = 0; i < n; i++) {
+      j = list[i];
+      for (int dim = 0; dim < N_DIM; dim++) hj[j][dim] += buf[m++];
+    }
   }
 }
 

@@ -63,6 +63,8 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   double *ds2i;
   // nmax X 3
   double **diff_Ni;
+  // nmax X 3;
+  double **diff_Ntotal;
   // nmax X 13
   double **gi_real, **gi_imag;
   // nmax
@@ -71,6 +73,8 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   double *Cjj;
   // nmax X 3
   double **hj;
+  // nmax X 3
+  double **hj2;
   // the flag for the comm_forward
   int forward_mode;
   // nmax
