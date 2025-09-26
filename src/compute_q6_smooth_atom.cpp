@@ -1091,12 +1091,9 @@ void ComputeQ6SmoothAtom::compute_all()
           error->warning(FLERR,"Dead gradient of zero in all the direction! \
                                  Setting a random value in the x-direction!");
         */
-        int direction = (static_cast<int>(std::abs(rng->gaussian()*100.0))) %3+1;
-        int col;
-        if (direction == 1) col = diff_x_col;
-        else if (direction == 2) col = diff_y_col;
-        else if (direction == 3) col = diff_z_col;
-        array_atom[i][col] = target;
+        int dirs[3] = {diff_x_col,diff_y_col,diff_z_col};
+        int idx = (static_cast<int>(std::abs(rng->uniform()*100.0))) %3;
+        array_atom[i][dirs[idx]] = target;
       } else {
         const double s = target / slope;
         array_atom[i][diff_x_col] *= s;
