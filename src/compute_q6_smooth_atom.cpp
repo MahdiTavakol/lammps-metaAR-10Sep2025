@@ -38,15 +38,18 @@ enum { N_MODE = 0, PHI_MODE = 1 << 1 };
 
 enum { Q6_STRIDE = 26, N_STRIDE = 1, G_STRIDE = 1 };
 
+enum { NONE = 0, S0_SW=1<<1, S1_SW=1<<2, S2_SW=1<<3, S3_SW=1<<4};
+
 // parameter to avoid dead gradient issue.
 static double constexpr min_slope = 0.02;
 
 /* ---------------------------------------------------------------------- */
 
 ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
-    ComputeDiffAtom{lmp, narg, arg}, mode{N_MODE}, chosen_type{-1}, cutoff{3.2}, q6ms_real{nullptr},
-    q6ms_imag{nullptr}, diff_q6ms_real{nullptr}, diff_q6ms_imag{nullptr}, inv_q6_norm_i{nullptr},
-    inv_nbnum_i{nullptr}, Ni{nullptr}, ds2i{nullptr}, diff_Ni{nullptr}, gi_real{nullptr},
+    ComputeDiffAtom{lmp, narg, arg}, mode{N_MODE}, chosen_type{-1}, cutoff{3.2},
+    q6ms_real{nullptr}, q6ms_imag{nullptr}, diff_q6ms_real{nullptr}, diff_q6ms_imag{nullptr},
+    inv_q6_norm_i{nullptr}, inv_nbnum_i{nullptr},
+    Ni{nullptr}, ds2i{nullptr}, diff_Ni{nullptr}, gi_real{nullptr},
     gi_imag{nullptr}, Gi{nullptr}, Cjj{nullptr}, hj{nullptr}, forward_mode{Q6_TRANSFER},
     s0j{nullptr}, s1j{nullptr}, ds0j{nullptr}, ds1j{nullptr}, dqi_drj_real{nullptr}, dqi_drj_imag{
                                                                                          nullptr}
@@ -56,7 +59,9 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
 
   // before calling the comm->forward this parameter is set since it has two different values.
   comm_forward = Q6_STRIDE;
-  comm_reverse = 3;
+  bool switches[4] = {true,true,true,true};
+  switch_flag |= S2_SW;
+  switch_flag |= S3_SW;
 
   int iarg = 5;
   while (iarg < narg) {
@@ -71,13 +76,13 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
       mode = PHI_MODE;
       iarg++;
     } else if (strcmp(arg[iarg], "s0") == 0) {
-      switches[0] = false;
+      switch_flag &= ~S0_SW;
     } else if (strcmp(arg[iarg], "s1") == 0) {
-      switches[1] = false;
+      switch_flag &= ~S1_SW;
     } else if (strcmp(arg[iarg], "s2") == 0) {
-      switches[2] = false;
+      switch_flag &= ~S2_SW;
     } else if (strcmp(arg[iarg], "s3") == 0) {
-      switches[3] = false;
+      switch_flag &= ~S3_SW;
     } else
       error->all(FLERR, "Illegal compute q6-smooth/atom command");
   }
@@ -228,25 +233,25 @@ void ComputeQ6SmoothAtom::compute_all()
 
   // lambda functions
   auto s0 = [&](const double &input, double &output, double &diff) {
-    if (switches[0])
+    if (switch_flag & S0_SW)
       dist(input,cutoff,output,diff);
     else
       equal(input,output,diff);
   };
   auto s1 = [&](const double &input, double &output, double &diff) {
-    if (switches[1])
+    if (switch_flag & S1_SW)
       orient(input, beta1, x01, output, diff);
     else
       equal(input,output,diff);
   };
   auto s2 = [&](const double &input, double &output, double &diff) {
-    if (switches[2])
+    if (switch_flag & S2_SW)
       orient(input, beta2, x02, output, diff);
     else
       equal(input,output,diff);
   };
   auto s3 = [&](const double &input, double &output, double &diff) {
-    if (switches[3])
+    if (switch_flag & S3_SW)
       dist(input, cutoff, output, diff);
     else
       equal(input,output,diff);

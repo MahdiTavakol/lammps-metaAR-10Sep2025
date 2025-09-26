@@ -42,7 +42,7 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   int mode;
   int chosen_type;
   double cutoff;
-  bool switches[4] = {true,true,true,true};
+  int switch_flag;
 
   // the real part of q6ms for each atom
   // nmax X 13
