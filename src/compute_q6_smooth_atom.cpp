@@ -229,10 +229,10 @@ void ComputeQ6SmoothAtom::compute_all()
   // lambda functions
   auto s0 = [&](const double &input, double &output, double &diff) {
     if (switches[0])
-      dist(input,cutoff,diff);
+      dist(input,cutoff,output,diff);
     else
       equal(input,output,diff);
-  }
+  };
   auto s1 = [&](const double &input, double &output, double &diff) {
     if (switches[1])
       orient(input, beta1, x01, output, diff);
@@ -479,13 +479,13 @@ void ComputeQ6SmoothAtom::compute_all()
       }
 
       /* Some tests -->>*/
-      if (std::abs(bij) + eps > 1.0) error->warning(FLERR, "This aint good {},{}", i, j);
+      if (std::abs(bij)> 1.0 + eps ) error->warning(FLERR, "This aint good {},{}", i, j);
       /*<<--Some tests*/
-
+  
       double s0val, ds0val;
       double s1val, ds1val;
       s1(bij, s1val, ds1val);
-      s0(r, cutoff, s0val, ds0val);
+      s0(r, s0val, ds0val);
       Si += s1val * s0val;
 
       s0j[j] = s0val;
@@ -531,7 +531,7 @@ void ComputeQ6SmoothAtom::compute_all()
       }
 
       // the distance contribution to the dcij/dri
-      // the rij distance does not contribute to the dcij/drk if k!=j
+      // the rij distance does not contribute to thstep 5e dcij/drk if k!=j
       const double diff_x = wpair2 * distx / r;
       const double diff_y = wpair2 * disty / r;
       const double diff_z = wpair2 * distz / r;
@@ -638,7 +638,6 @@ void ComputeQ6SmoothAtom::compute_all()
   }
 
   // Now we have dCV/dri (N_MODE) or dNi/dri (PHI_MODE)
-
 
 
   /*
@@ -794,9 +793,9 @@ void ComputeQ6SmoothAtom::compute_all()
         // cache for step 5D
         Cjj[j] = cij;
 
-        s0(r, cutoff, s0val, ds0);
+        s0(r, s0val, ds0);
         s1(cij, s1val, ds1);
-
+    
         // it contributes to the Nj that is the reason why ds2i[j]
         // Gi[j] contains the s3val
         // Gj*Nj
@@ -892,11 +891,10 @@ void ComputeQ6SmoothAtom::compute_all()
            */
 
           double cik = Cjj[k];
-          double s2ikval, ds2ik;
           double s1ikval, ds1ik;
           double s0ikval, ds0ik;
           s1(cik, s1ikval, ds1ik);
-          s0(rik, cutoff, s0ikval, ds0ik);
+          s0(rik, s0ikval, ds0ik);
           double wpair = ds2i[k] * ds1ik * s0ikval * Gi[k];
           for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++)
             for (int dim = 0; dim < N_DIM; dim++)
@@ -911,7 +909,7 @@ void ComputeQ6SmoothAtom::compute_all()
         double s0val, ds0;
         double s1val, ds1;
         s1(Cjj[j], s1val, ds1);
-        s0(r, cutoff, s0val, ds0);
+        s0(r, s0val, ds0);
         double wpair = Gi[i] * ds2i[i] * s1val * ds0;
         for (int dim = 0; dim < 3; dim++)
           hj[j][dim] += wpair*distance[dim]/r;
@@ -959,12 +957,19 @@ void ComputeQ6SmoothAtom::compute_all()
     double y_comp = array_atom[i][diff_y_col];
     double z_comp = array_atom[i][diff_z_col];
     double slope = std::sqrt(x_comp * x_comp + y_comp * y_comp + z_comp * z_comp);
-    double random_slope = rng->gaussian()*min_slope;
     if (slope > 0 && slope < min_slope) {
-      double s = random_slope / slope;
-      array_atom[i][diff_x_col] = x_comp*random_slope;
-      array_atom[i][diff_y_col] = y_comp*random_slope;
-      array_atom[i][diff_z_col] = z_comp*random_slope;
+      const double target = std::abs(rng->gaussian()) * min_slope; // >= 0
+      if (slope == 0.0) {
+        // pick a deterministic axis (or random unit vec if desired)
+        array_atom[i][diff_x_col] = target;
+        array_atom[i][diff_y_col] = 0.0;
+        array_atom[i][diff_z_col] = 0.0;
+      } else {
+        const double s = target / slope;
+        array_atom[i][diff_x_col] *= s;
+        array_atom[i][diff_y_col] *= s;
+        array_atom[i][diff_z_col] *= s;
+      }
     }
   }
 
@@ -1186,11 +1191,6 @@ std::array<double, 104> ComputeQ6SmoothAtom::calculate_Y6m(const std::array<doub
   std::fill_n(Y6m.begin(), Y6m.size(), 0.0);
   if (r < eps || rxy < eps) return Y6m;
 
-  double theta = std::acos(z / r);
-  double phi = std::atan2(y, x);    // Accurate azimuthal angle
-  double sin_theta = std::sin(theta);
-  double cos_theta = std::cos(theta);
-
   const double ct = z / r;                // cos(theta)
   const double st = std::sqrt(std::max(0.0, 1.0 - ct*ct)); // sin(theta), robust to FP
   const double c1 = x / rxy;              // cos(phi)
@@ -1323,4 +1323,6 @@ std::array<double, 104> ComputeQ6SmoothAtom::calculate_Y6m(const std::array<doub
     const double dsecond  = 0.0;
     emit_pair(6, C6, second, dsecond);
   }
+
+  return Y6m;
 }
