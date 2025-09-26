@@ -960,7 +960,9 @@ void ComputeQ6SmoothAtom::compute_all()
     if (slope > 0 && slope < min_slope) {
       const double target = std::abs(rng->gaussian()) * min_slope; // >= 0
       if (slope == 0.0) {
-        // pick a deterministic axis (or random unit vec if desired)
+        if (comm->me == 0)
+          error->warning(FLERR,"Dead gradient of zero in all the direction!
+                                 Setting a random value in the x-direction!");
         array_atom[i][diff_x_col] = target;
         array_atom[i][diff_y_col] = 0.0;
         array_atom[i][diff_z_col] = 0.0;
