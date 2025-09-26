@@ -155,8 +155,16 @@ void ComputeQ6SmoothAtom::init()
   rng = std::make_unique<RanPark>(lmp, 11111);
 
   // All the switches are off
-  if (switch_flag == 0 && mode & PHI_MODE)
+  if ((switch_flag & !S0_SW) && 
+      (switch_flag & !S1_SW) &&
+      (switch_flag & !S2_SW) &&
+      (switch_flag & !S2_SW) && 
+      (mode & PHI_MODE)) {
+    if (comm->me == 0) {
+      error->warning(FLERR,"Running the faster version of the phi mode!");
+    }
     mode = SIMPLE_PHI_MODE;
+  }
 }
 
 /* ----------------------------------------------------------------------- */
