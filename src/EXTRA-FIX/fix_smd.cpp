@@ -490,8 +490,6 @@ void FixSMD::smd_compute()
 	  fcv = f_smd;
   }
 
-  ftotal_all[6]=fcv;
-
   double massfrac;
   if (rmass) {
     for (int i = 0; i < nlocal; i++)
@@ -517,34 +515,6 @@ void FixSMD::smd_compute()
       }
   }
 
-  double ftotal_all[3];
-
-  MPI_Allreduce(ftotal,ftotal_all,3,MPI_DOUBLE,MPI_SUM,world);
-
-
-  if (rmass) {
-    for (int i = 0; i < nlocal; i++)
-      if (mask[i] & groupbit) {
-        massfrac = rmass[i]/masstotal;
-        f[i][0] -= ftotal_all[0]*massfrac;
-        f[i][1] -= ftotal_all[1]*massfrac;
-        f[i][2] -= ftotal_all[2]*massfrac;
-        ftotal[0] -= ftotal_all[0]*massfrac;
-        ftotal[1] -= ftotal_all[1]*massfrac;
-        ftotal[2] -= ftotal_all[2]*massfrac;
-      }
-  } else {
-    for (int i = 0; i < nlocal; i++)
-      if (mask[i] & groupbit) {
-        massfrac = mass[type[i]]/masstotal;
-        f[i][0] -= ftotal_all[0]*massfrac;
-        f[i][1] -= ftotal_all[1]*massfrac;
-        f[i][2] -= ftotal_all[2]*massfrac;
-        ftotal[0] -= ftotal_all[0]*massfrac;
-        ftotal[1] -= ftotal_all[1]*massfrac;
-        ftotal[2] -= ftotal_all[2]*massfrac;
-      }
-  }
 }
 
 /* ---------------------------------------------------------------------- */
@@ -728,8 +698,7 @@ double FixSMD::compute_vector(int n)
       ftotal_all[4]=r_old;
     }
     ftotal_all[5]=r_now;
-    if (!(styleflag & SMD_COMPUTE))
-      ftotal_all[6]=pmf;
+    ftotal_all[6]=pmf;
   }
   return ftotal_all[n];
 }
