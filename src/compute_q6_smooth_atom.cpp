@@ -104,9 +104,13 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
       beta2 = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
       x02 = utils::numeric(FLERR, arg[iarg + 2], false, lmp);
       iarg+=3;
-    }else
+    } else
       error->all(FLERR, "Illegal compute q6-smooth/atom command");
   }
+
+  // A warning message
+  if ((mode & N_MODE) && !(switch_flag & S3_SW))
+    error->warning(FLERR,"There is no S3 function in the N_MODE mode, ignoring the S3_off flag!");
 }
 
 /* ----------------------------------------------------------------------- */
