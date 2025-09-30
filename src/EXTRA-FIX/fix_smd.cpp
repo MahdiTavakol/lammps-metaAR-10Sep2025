@@ -205,7 +205,7 @@ void FixSMD::init()
       error->all(FLERR,"Cannot find the compute");
     if (cmpt == nullptr)
       error->all(FLERR,"The compute is not of the correct type");
-    r_old = r0+cmpt->scalar;
+    r_old = cmpt->scalar;
   }
 
   if (utils::strmatch(update->integrate_style,"^respa")) {
@@ -470,11 +470,17 @@ void FixSMD::smd_compute()
   double** cmpt_array_atom = cmpt->array_atom;
 
   double fcv;
+
+  bigint ntimestep = update->ntimestep;
+  if (ntimestep == 0) {
+    r_old = r_now; 
+    return;
+  }
   
   ftotal[0] = ftotal[1] = ftotal[2] = 0.0;
   force_flag = 0;
 
-  double dr = r_now - r_old;
+  double dr = r_now - r0 - r_old;
   if (styleflag & SMD_CVEL) {
 		fcv = k_smd*dr;
   } else {
