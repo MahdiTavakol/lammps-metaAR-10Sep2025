@@ -600,7 +600,7 @@ void ComputeQ6SmoothAtom::compute_all()
       }
 
       /* Some tests -->>*/
-      if (std::abs(std::abs(bij)-1.0)> eps ) error->warning(FLERR, "This aint good {},{}", i, j);
+      if (std::abs(bij)> 1.0 + eps ) error->warning(FLERR, "This aint good {},{},{}", i, j,std::abs(bij));
       /*<<--Some tests*/
   
       double s0val, ds0val;
