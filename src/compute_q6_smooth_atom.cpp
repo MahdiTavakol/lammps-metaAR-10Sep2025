@@ -475,6 +475,7 @@ void ComputeQ6SmoothAtom::compute_all()
    *      dNj/dri = dqj/dri * gj + qj* (sigma dqk/dri)
    *      Thus Ni also contributes to j and for the same reason we need hj.. but hj = wij*qj*dqi/drj
    *      diffN1/diffrk = diffq1 *(q2+q3+q4) + q1*(diffq2+diffq3+diffq4)
+   *
    * (3)  SIMPLE_N_MODE: N_total = simga(Ni)
    *      Ni = sigma(wij*qi*qj)
    *      gi = sigma(wij*qj) --> N_total = sigma(qi*gi)
@@ -492,7 +493,7 @@ void ComputeQ6SmoothAtom::compute_all()
   /*
    * (1)  We first calculate gi values.
    * (2)  For the contribution of qi to the diff with respect to rj   
-   *      (2A)  if (mode & N_MODE) N_total = N1 + N2 + N3 + ... = q1*g1+q2*g2 + ...
+   *      (2A)  if (mode & SIMPLE_N_MODE) N_total = N1 + N2 + N3 + ... = q1*g1+q2*g2 + ...
    *            Thus, the contribution of the qi to the rj comes from the gi * diffqi/diffrj
    *            Also we have both the ij and ji pairs. That is the reason why the result is multiplied by 2.
    *      (2B)  if (mode & PHI_MODE) Ni = q1*g2
@@ -510,6 +511,18 @@ void ComputeQ6SmoothAtom::compute_all()
    * (3)  As atom i can contribute to atom j which might be a ghost atom we fill the 
    *      its contribution to atom j in the hj array which we be reverse communicate
    *      to fill the ghost atoms of all the rankk.
+   * (4)  An examples for the N_MODE:
+   *      Ai = ds2[i]
+   *      N = A1*q1*(q2+q3+q4)+A2*q2*(q1+q3)+A3*q3*(q1+q2+q4)+A4*q4*(q1+q3)
+   *      N = A1*q1*g1+A2*q2*g2+A3*q3*g3+A4*q4*g4
+   *      dN1/dr1 = A1*dq1/dr1*(q2+q3+q4) = A1*dq1/dr1*g1 (first term of N1)
+   *      dN2/dr1 = A2*dq2/dr1*(q1+q3) = A2*dq2/dr1*g2 (first term of N2)
+   *      dN3/dr1 = A3*dq3/dr1*(q1+q2+q4) = A3*dq3/dr1*g3
+   *      dN4/dr1 = A4*dq4/dr1*(q1+q3) = A4*dq4/dr1*g4
+   *      dN/dr1 = dq1/dr1*(A2*q2+A3*q3+A4*q4)=dq1/dr1*(gprimi1)
+   *      dN/dr1 = dq2/dr1*(A1*q1+A3*q3)=dq2/dr1*(gprimi2)
+   *      dN/dr1 = dq3/dr1*(A1*q1+A3*q3+A4*q4)=dq3/dr1*(gprimi3)
+   *      dN/dr1 = dq4/dr1*(A1*q1+A3*q3)=dq4/dr1*(gprimi4)
    * 
    */
 
@@ -518,6 +531,7 @@ void ComputeQ6SmoothAtom::compute_all()
    * and fills the hj components.
    * For the N_MODE we fill the diff_array_atom
    * For the PHI_MODE the diff_Ni is filled.
+   * We cannot fill the gprime yet since it needs the ds2[j]
    */
 
   for (ii = 0; ii < inum; ii++) {
@@ -574,13 +588,10 @@ void ComputeQ6SmoothAtom::compute_all()
     for (jj = 0; jj < jnum; jj++) {
       j = jlist[jj];
       j &= NEIGHMASK;
-
       double bij = 0.0;
-
       double distx = x[i][0] - x[j][0];
       double disty = x[i][1] - x[j][1];
       double distz = x[i][2] - x[j][2];
-
       double r = sqrt(distx * distx + disty * disty + distz * distz);
       if (r < 1e-8 || r >= cutoff) continue;
 
@@ -589,7 +600,7 @@ void ComputeQ6SmoothAtom::compute_all()
       }
 
       /* Some tests -->>*/
-      if (std::abs(bij)> 1.0 + eps ) error->warning(FLERR, "This aint good {},{}", i, j);
+      if (std::abs(std::abs(bij)-1.0)> eps ) error->warning(FLERR, "This aint good {},{}", i, j);
       /*<<--Some tests*/
   
       double s0val, ds0val;
@@ -607,7 +618,7 @@ void ComputeQ6SmoothAtom::compute_all()
     double ds2;
     double s2val;
     s2(Si, s2val, ds2);
-    if (mode & N_MODE) {
+    if (mode & N_MODE || mode & SIMPLE_N_MODE) {
       array_atom[i][val_col] = s2val;
     } else if (mode & PHI_MODE || mode & SIMPLE_PHI_MODE) {
       array_atom[i][second_val_col] = s2val;
@@ -625,10 +636,10 @@ void ComputeQ6SmoothAtom::compute_all()
     
     // Check if we need diffs or not!
     if (!(mode & NO_DIFF)) {
+      //Adding the distance dependent sentence
       for (jj = 0; jj < jnum; jj++) {
         j = jlist[jj];
         j &= NEIGHMASK;
-
         const double distx = x[i][0] - x[j][0];
         const double disty = x[i][1] - x[j][1];
         const double distz = x[i][2] - x[j][2];
@@ -643,44 +654,49 @@ void ComputeQ6SmoothAtom::compute_all()
           gi_imag[i][indx] += wpair * q6ms_imag[j][indx];
         }
 
-        // the distance contribution to the dcij/dri
-        // the rij distance does not contribute to the step 5e dcij/drk if k!=j
         const double diff_x = wpair2 * distx / r;
         const double diff_y = wpair2 * disty / r;
         const double diff_z = wpair2 * distz / r;
         if (mode & N_MODE) {
           // Since wpair2[i][j] = ds2(i)*s1(ij)*ds0(ij) this term is not symmetric
+          // Ni contributions to the dN/dri  and dN/drj
           array_atom[i][diff_x_col] += diff_x;
           array_atom[i][diff_y_col] += diff_y;
           array_atom[i][diff_z_col] += diff_z;
-          hj[i][0] -= diff_x;
-          hj[i][1] -= diff_y;
-          hj[i][2] -= diff_z;
+          hj[j][0] -= diff_x;
+          hj[j][1] -= diff_y;
+          hj[j][2] -= diff_z;
         } else if (mode & PHI_MODE) {
           diff_Ni[i][0] += diff_x;
           diff_Ni[i][1] += diff_y;
           diff_Ni[i][2] += diff_z;
         } else if (mode & SIMPLE_PHI_MODE) {
           // No S2, so wpair2 is symmeteric
+          // Contribution of Nj to dNtotal/dri is the same as Ni -->2.0*
           diff_Ni[i][0] += diff_x;
           diff_Ni[i][1] += diff_y;
           diff_Ni[i][2] += diff_z;
           diff_Ntotal[i][0] += 2.0 * diff_x;
           diff_Ntotal[i][1] += 2.0 * diff_y;
           diff_Ntotal[i][2] += 2.0 * diff_z;
+        } else if (mode & SIMPLE_N_MODE) {
+          // No S2, so wpair2 is symmeteric
+          array_atom[i][diff_x_col] += 2.0*diff_x;
+          array_atom[i][diff_y_col] += 2.0*diff_y;
+          array_atom[i][diff_z_col] += 2.0*diff_z;
         }
       }
     }
 
     /*
-     * gi = sigma(wij*qj) 
+     * gi = ds2*sigma(wij*qj) 
      * N_MODE : CV = sigma(qi*gi) dCV/dri = sigma(gi*dqi/dri (PART I) + qi*(wij*sigmadqj/dri) (PART 2))
      * PART 2  = gi*dqi/drj
      * PHI_MODE: Ni = gi*qi dNi/dri = gi*dqi/dri (PART I) + qi*(wij*sigmadqj/dri) (PART 2)
      * PART 2 = qi*dqi/drj
      */
     // This part calculates the qj*dqi/dri dependent component of diffNi/diffri or diffN_total/diffri
-    // (the  qi*dgi/dri (qi*sigma(dqj/dri)) is calculated in the next part!)
+    // (the  gi*dqi/dri (qi*sigma(dqj/dri)) is calculated in the next part!)
     // cij = sigma (qi*qj)
     // dcij/dri = dqi/dri * gi + qi*dgi/dri (in the next section)
     // N_MODE : CV = sigma (gi*qi) --> dCV/dri = 2.0*gi*dqi/dri+...
@@ -747,12 +763,8 @@ void ComputeQ6SmoothAtom::compute_all()
             }
           }
         } else if (mode & PHI_MODE) {
-          for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
-            for (int dim = 0; dim < N_DIM; dim++) {
-              hj[j][dim] += dqi_drj_real[indx][dim] * q6ms_real[i][indx];
-              hj[j][dim] += dqi_drj_imag[indx][dim] * q6ms_imag[i][indx];
-            }
-          }
+          // Since the Nj = s2j*sigma(wjk*qj*qk) and on this node
+          // we still do not have the s2 for all the neighbors we do not add anything to hj yet!
         } else if (mode & SIMPLE_PHI_MODE) {
           for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
             for (int dim = 0; dim < N_DIM; dim++) {
@@ -762,9 +774,22 @@ void ComputeQ6SmoothAtom::compute_all()
               hj2[j][dim] += 2.0 * dqi_drj_imag[indx][dim] * gi_imag[i][indx];
             }
           }
+        } else if (mode & SIMPLE_N_MODE) {
+          for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
+            for (int dim = 0; dim < N_DIM; dim++) {
+              hj[j][dim] += 2.0*dqi_drj_real[indx][dim]*gi_real[i][indx];
+              hj[j][dim] += 2.0*dqi_drj_imag[indx][dim]*gi_imag[i][indx];
+            }
+          }
+
         }
+
+
       }
     }
+
+
+
   }
 
 
@@ -806,17 +831,27 @@ void ComputeQ6SmoothAtom::compute_all()
         ds1j[j] = ds1;
         double wpair = ds2[j]*ds1val*s0val;
 
-       if (mode & N_MODE) {
-        for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
+        if (mode & N_MODE) {
+          for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
             gi_prime_real[indx] += wpair*q6ms_real[j][indx];
             gi_prime_imag[indx] += wpair*q6ms_imag[j][indx];
           }
-        }
+        } 
 
 
       }
 
-      // We need to have the gi_*_val array first
+
+      if (mode & N_MODE) {
+        for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
+          array_atom[i][diff_x_col] += gi_prime_real[indx]*diff_q6ms_real[i][indx][0] + gi_prime_imag[indx]*diff_q6ms_imag[i][indx][0];
+          array_atom[i][diff_y_col] += gi_prime_real[indx]*diff_q6ms_real[i][indx][1] + gi_prime_imag[indx]*diff_q6ms_imag[i][indx][1]; 
+          array_atom[i][diff_z_col] += gi_prime_real[indx]*diff_q6ms_real[i][indx][2] + gi_prime_imag[indx]*diff_q6ms_imag[i][indx][2];  
+        }
+      } 
+
+
+      // We need to have the gi_prime_* array first
       for (int jj = 0; jj < jnum; jj++) {
         j = jlist[jj];
         j &= NEIGHMASK;
@@ -885,6 +920,10 @@ void ComputeQ6SmoothAtom::compute_all()
         diff_Ntotal[i][0] += hj2[i][0];
         diff_Ntotal[i][1] += hj2[i][1];
         diff_Ntotal[i][2] += hj2[i][2];
+      } else if (mode & SIMPLE_N_MODE) {
+        array_atom[i][diff_x_col] += diff_x;
+        array_atom[i][diff_y_col] += diff_y;
+        array_atom[i][diff_z_col] += diff_z;
       }
     }
   }
