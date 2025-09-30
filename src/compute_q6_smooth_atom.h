@@ -118,6 +118,12 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
                                  const double &inv_q6_norm_i, double **dqi_drj_real,
                                  double **dqi_drj_imag);
 
+  inline static double smooth_floor(double a, double floor, double k=16.0) noexcept
+  {
+    // returns ~max(a, floor) but C^1
+    return floor + std::log1p(std::exp(k*(a - floor)))/k;
+  }
+
   inline static double pow_fun(double s, int n) noexcept
   {
     double out = 1.0;

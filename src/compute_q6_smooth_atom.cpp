@@ -797,7 +797,7 @@ void ComputeQ6SmoothAtom::compute_all()
   if (!(mode & NO_DIFF) && (switch_flag & S2_SW)) {
     comm_forward = DS2_FOR_STRIDE;
     forward_mode = DS2_TRANSFER;
-    comm->forward(this);
+    comm->forward_comm(this);
 
     for (ii = 0; ii < inum; ii++) {
       i = ilist[ii];
@@ -873,7 +873,7 @@ void ComputeQ6SmoothAtom::compute_all()
             }
           }
         } else if (mode & PHI_MODE) {
-          double wpair = ds2[j]*ds1j[j]*s0j[j];
+          double wpair = ds2i[j]*ds1j[j]*s0j[j];
           for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
             for (int dim = 0; dim < 3; dim++) {
               hj[j][dim] += wpair*(q6ms_real[j][indx]*dqi_drj_real[indx][dim] + q6ms_imag[j][indx]*dqi_drj_imag[indx][dim]);
@@ -1459,7 +1459,7 @@ void ComputeQ6SmoothAtom::orient(const double &input, const double &beta, const 
   diff = beta * output * (1.0 - output);
 
   // avoiding dead gradient
-  if (std::abs(diff) <= min_slope) diff = min_slope;
+  if (std::abs(diff) <= min_slope) smooth_floor(diff,min_slope);
 }
 
 /* --------------------------------------------------------------------- */
@@ -1488,7 +1488,7 @@ void ComputeQ6SmoothAtom::dist(const double &input, const double &cutoff, double
   // avoiding dead gradient
   if (std::abs(diff) <= min_slope)
   if (x > 0.0 || x < 1.0)
-     diff = -min_slope;
+     diff = -smooth_floor(-diff,min_slope);
 }
 
 
