@@ -794,7 +794,7 @@ void ComputeQ6SmoothAtom::compute_all()
 
 
   // The S2_SW brakes the symmetery
-  if (!(mode & NO_DIFF) & (switch_flag & S2_SW)) {
+  if (!(mode & NO_DIFF) && (switch_flag & S2_SW)) {
     comm_forward = DS2_FOR_STRIDE;
     forward_mode = DS2_TRANSFER;
     comm->forward(this);
@@ -805,11 +805,11 @@ void ComputeQ6SmoothAtom::compute_all()
       jlist = firstneigh[i];
       if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
 
-      double gi_prime_real[13];
-      double gi_prime_imag[13];
+      double gi_prime_real[Q6_ARRAY_SIZE];
+      double gi_prime_imag[Q6_ARRAY_SIZE];
 
-      std::fill_n(gi_prime_real.begin(),gi_prime_real.size(),0.0);
-      std::fill_n(gi_prime_imag.begin(),gi_prime_imag.size(),0.0);
+      std::fill_n(gi_prime_real,Q6_ARRAY_SIZE,0.0);
+      std::fill_n(gi_prime_imag,Q6_ARRAY_SIZE,0.0);
 
       for (jj = 0; jj < jnum; jj++) {
         j = jlist[jj];
@@ -828,8 +828,8 @@ void ComputeQ6SmoothAtom::compute_all()
         s0(r, s0val, ds0val);
         s1(bij, s1val, ds1val);
         s0j[j] = s0val;
-        ds1j[j] = ds1;
-        double wpair = ds2[j]*ds1val*s0val;
+        ds1j[j] = ds1val;
+        double wpair = ds2i[j]*ds1val*s0val;
 
         if (mode & N_MODE) {
           for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
@@ -1268,16 +1268,16 @@ void ComputeQ6SmoothAtom::compute_all()
 
   double num_double = static_cast<double>(num_selected_all);
   double scaling = 0.0;
-  if (mode & N_MODE)
+  if (mode & (N_MODE | SIMPLE_N_MODE))
     scaling = (num_double >= 1 ? 1.0/num_double : 0.0);
-  else if ((mode & PHI_MODE) || (mode & SIMPLE_PHI_MODE))
+  else if (mode & (PHI_MODE | SIMPLE_PHI_MODE))
     scaling = (num_double >= 2 ? 2.0 / (num_double * (num_double - 1.0)) : 0.0);
   phi_sum_all *= scaling;
   Q6_sum_all *= scaling;
   
-  if (mode & N_MODE)
+  if (mode & (N_MODE | SIMPLE_N_MODE))
     scalar = Q6_sum_all;
-  else if ((mode & PHI_MODE) || (mode & SIMPLE_PHI_MODE))
+  else if (mode & (PHI_MODE | SIMPLE_PHI_MODE))
     scalar = phi_sum_all;
 
   for (ii = 0; ii < inum; ii++) {
@@ -1459,7 +1459,7 @@ void ComputeQ6SmoothAtom::orient(const double &input, const double &beta, const 
   diff = beta * output * (1.0 - output);
 
   // avoiding dead gradient
-  if (std::abs(diff) <= min_slope) diff = (input >= x0 ? -min_slope : min_slope);
+  if (std::abs(diff) <= min_slope) diff = min_slope;
 }
 
 /* --------------------------------------------------------------------- */
@@ -1486,7 +1486,9 @@ void ComputeQ6SmoothAtom::dist(const double &input, const double &cutoff, double
   diff *= 1.0 / (cutoff - r0);
 
   // avoiding dead gradient
-  if (std::abs(diff) <= min_slope) diff = x < 0.5 ? min_slope : -min_slope;
+  if (std::abs(diff) <= min_slope)
+  if (x > 0.0 || x < 1.0)
+     diff = -min_slope;
 }
 
 
