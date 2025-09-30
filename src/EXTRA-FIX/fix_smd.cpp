@@ -205,7 +205,7 @@ void FixSMD::init()
       error->all(FLERR,"Cannot find the compute");
     if (cmpt == nullptr)
       error->all(FLERR,"The compute is not of the correct type");
-    r_old = cmpt->scalar;
+    r_old = r0+cmpt->scalar;
   }
 
   if (utils::strmatch(update->integrate_style,"^respa")) {
@@ -458,10 +458,7 @@ void FixSMD::smd_direction()
 void FixSMD::smd_compute()
 {
   double **f = atom->f;
-  int *type = atom->type;
   int *mask = atom->mask;
-  double *mass = atom->mass;
-  double *rmass = atom->rmass;
   int nlocal = atom->nlocal;
 
   cmpt->compute_all();
@@ -473,46 +470,25 @@ void FixSMD::smd_compute()
   double** cmpt_array_atom = cmpt->array_atom;
 
   double fcv;
-
-  bigint ntimestep = update->ntimestep;
-  if (ntimestep == 0) {
-    r_old = r_now; 
-    return;
-  }
   
   ftotal[0] = ftotal[1] = ftotal[2] = 0.0;
   force_flag = 0;
 
-  double dr = r_now + r0 - r_old;
+  double dr = r_now - r_old;
   if (styleflag & SMD_CVEL) {
 		fcv = k_smd*dr;
   } else {
 	  fcv = f_smd;
   }
 
-  double massfrac;
-  if (rmass) {
-    for (int i = 0; i < nlocal; i++)
-      if (mask[i] & groupbit) {
-        massfrac = rmass[i]/masstotal;
-        f[i][0] -= cmpt_array_atom[i][diff_x_col]*fcv*massfrac;
-        f[i][1] -= cmpt_array_atom[i][diff_y_col]*fcv*massfrac;
-        f[i][2] -= cmpt_array_atom[i][diff_z_col]*fcv*massfrac;
-        ftotal[0] -= cmpt_array_atom[i][diff_x_col]*fcv*massfrac;
-        ftotal[1] -= cmpt_array_atom[i][diff_y_col]*fcv*massfrac;
-        ftotal[2] -= cmpt_array_atom[i][diff_z_col]*fcv*massfrac;
-      }
-  } else {
-    for (int i = 0; i < nlocal; i++)
-      if (mask[i] & groupbit) {
-        massfrac = mass[type[i]]/masstotal;
-        f[i][0] -= cmpt_array_atom[i][diff_x_col]*fcv*massfrac;
-        f[i][1] -= cmpt_array_atom[i][diff_y_col]*fcv*massfrac;
-        f[i][2] -= cmpt_array_atom[i][diff_z_col]*fcv*massfrac;
-        ftotal[0] -= cmpt_array_atom[i][diff_x_col]*fcv*massfrac;
-        ftotal[1] -= cmpt_array_atom[i][diff_y_col]*fcv*massfrac;
-        ftotal[2] -= cmpt_array_atom[i][diff_z_col]*fcv*massfrac;
-      }
+
+  for (int i = 0; i < nlocal; i++) {
+    f[i][0] -= cmpt_array_atom[i][diff_x_col]*fcv;
+    f[i][1] -= cmpt_array_atom[i][diff_y_col]*fcv;
+    f[i][2] -= cmpt_array_atom[i][diff_z_col]*fcv;
+    ftotal[0] -= cmpt_array_atom[i][diff_x_col]*fcv;
+    ftotal[1] -= cmpt_array_atom[i][diff_y_col]*fcv;
+    ftotal[2] -= cmpt_array_atom[i][diff_z_col]*fcv;
   }
 
 }
