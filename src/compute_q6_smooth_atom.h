@@ -20,6 +20,7 @@ ComputeStyle(q6-smooth/atom,ComputeQ6SmoothAtom);
 #ifndef LMP_COMPUTE_Q6_SMOOTH_ATOM_H
 #define LMP_COMPUTE_Q6_SMOOTH_ATOM_H
 
+#include <array>
 #include "compute.h"
 #include "compute_diff_atom.h"
 
