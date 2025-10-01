@@ -76,6 +76,9 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   double **hj;
   // nmax X 3
   double **hj2;
+  // The differential of the scaling factor with ri
+  double **diff_Z_all;
+  double **diff_W_all;
   // the flag for the comm_forward
   int forward_mode;
   // nmax

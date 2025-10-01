@@ -55,7 +55,8 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
     q6ms_real{nullptr}, q6ms_imag{nullptr}, diff_q6ms_real{nullptr}, diff_q6ms_imag{nullptr},
     inv_q6_norm_i{nullptr}, inv_nbnum_i{nullptr},
     Ni{nullptr}, ds2i{nullptr}, diff_Ni{nullptr}, diff_Ntotal{nullptr}, gi_real{nullptr},
-    gi_imag{nullptr}, Gi{nullptr}, Cjj{nullptr}, hj{nullptr}, hj2{nullptr}, forward_mode{Q6_TRANSFER},
+    gi_imag{nullptr}, Gi{nullptr}, Cjj{nullptr}, hj{nullptr}, hj2{nullptr}, 
+    diff_Z_all{nullptr}, diff_W_all{nullptr}, forward_mode{Q6_TRANSFER},
     s0j{nullptr}, s1j{nullptr}, ds0j{nullptr}, ds1j{nullptr}, dqi_drj_real{nullptr}, dqi_drj_imag{
                                                                                          nullptr}
 {
@@ -83,7 +84,7 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
       mode |= NO_DIFF;
       iarg++;
     } else if (strcmp(arg[iarg], "phi") == 0) {
-      mode = (mode & !N_MODE) | PHI_MODE;
+      mode = (mode & ~N_MODE) | PHI_MODE;
       iarg++;
     } else if (strcmp(arg[iarg], "S0_off") == 0) {
       switch_flag &= ~S0_SW;
@@ -139,6 +140,8 @@ void ComputeQ6SmoothAtom::init()
   memory->create(Cjj, nmax, "compute_q6_smooth_atom:Cjj");
   memory->create(hj, nmax, N_DIM, "compute_q6_smooth_atom:hj");
   memory->create(hj2, nmax, N_DIM, "compute_q6_smooth_atom:hj2");
+  memory->create(diff_Z_all,nmax,N_DIM,"compute_q6_smooth:diff_Z_all");
+  memory->create(diff_W_all,nmax,N_DIM,"compute_q6_smooth:diff_W_all");
   memory->create(s0j, nmax, "compute_q6_smooth_atom:s0j");
   memory->create(s1j, nmax, "compute_q6_smooth_atom:s1j");
   memory->create(ds0j, nmax, "compute_q6_smooth_atom:ds0j");
@@ -190,6 +193,9 @@ ComputeQ6SmoothAtom::~ComputeQ6SmoothAtom()
   if (Cjj) memory->destroy(Cjj);
   if (hj) memory->destroy(hj);
   if (hj2) memory->destroy(hj2);
+  if (diff_Z_all) memory->destroy(diff_Z_all);
+  if (diff_W_all) memory->destroy(diff_W_all);
+  if (hj2) memory->destroy(hj2);
   if (s0j) memory->destroy(s0j);
   if (s1j) memory->destroy(s1j);
   if (ds0j) memory->destroy(ds0j);
@@ -213,6 +219,8 @@ ComputeQ6SmoothAtom::~ComputeQ6SmoothAtom()
   Cjj = nullptr;
   hj = nullptr;
   hj2 = nullptr;
+  diff_Z_all = nullptr;
+  diff_W_all = nullptr;
   s0j = nullptr;
   s1j = nullptr;
   ds0j = nullptr;
@@ -254,6 +262,8 @@ void ComputeQ6SmoothAtom::compute_all()
     memory->grow(Cjj, nmax, "compute_q6_smooth_atom:Cjj");
     memory->grow(hj, nmax, N_DIM, "compute_q6_smooth_atom:hj");
     memory->grow(hj2, nmax, N_DIM, "compute_q6_smooth_atom:hj2");
+    memory->grow(diff_Z_all, nmax, N_DIM, "compute_q6_smooth_atom:diff_Z_all");
+    memory->grow(diff_W_all, nmax, N_DIM, "compute_q6_smooth_atom:diff_W_all");
     memory->grow(s0j, nmax, "compute_q6_smooth_atom:s0j");
     memory->grow(s1j, nmax, "compute_q6_smooth_atom:s1j");
     memory->grow(ds0j, nmax, "compute_q6_smooth_atom:ds0j");
@@ -276,6 +286,17 @@ void ComputeQ6SmoothAtom::compute_all()
   double phi_sum_all = 0.0;
   int num_selected = 0;
   int num_selected_all = 0;
+  // Si = sigma(s1(bij)*s0(rij))
+  // Zi = s0(rij)
+  // Z = sigma(s0(rij))
+  // Z is the normalization factor for N
+  double Z = 0.0;
+  double Z_all = 0.0;
+  // Phi = sigma(Ni*Nj*s0(rij))
+  // W = sigma(s0(rij))
+  // W is the normalization factor for phi
+  double W = 0.0;
+  double W_all = 0.0;
 
   // filling all the arrays with zeros
   std::fill_n(&array_atom[0][0], nmax * size_peratom_cols, 0.0);
@@ -290,6 +311,8 @@ void ComputeQ6SmoothAtom::compute_all()
   std::fill_n(Gi, nmax, 0.0);
   std::fill_n(&hj[0][0], nmax * N_DIM, 0.0);
   std::fill_n(&hj2[0][0], nmax * N_DIM, 0.0);
+  std::fill_n(&diff_Z_all[0][0],nmax*N_DIM,0.0);
+  std::fill_n(&diff_W_all[0][0],nmax*N_DIM,0.0);
 
   /*
    These variables either do not accumulate values
@@ -571,7 +594,7 @@ void ComputeQ6SmoothAtom::compute_all()
      * cij = s1(bij)*s0(rij)
      * Si = sigma(cij) over j
      * Ni = s2(Si)
-     * N_MODE: N_total = sigma(Ni)
+     * N_MODE: N_total = sigma(Ni*inv_nbnum_i)
      * PHI_MODE: PHI = sigma(s3(rij)*Ni*Nj)
      * dNi/drk = ds2(Si)*dSi/drk 
      * dNi/drk = ds2(Si)*(sigma(dcij/drk))
@@ -613,6 +636,13 @@ void ComputeQ6SmoothAtom::compute_all()
       s1(bij, s1val, ds1val);
       s0(r, s0val, ds0val);
       Si += s1val * s0val;
+
+      if (switch_flag & S0_SW) {
+        Z += s0val;
+        diff_Z_all[i][0] += 2.0*ds0val*distx/r;
+        diff_Z_all[i][1] += 2.0*ds0val*disty/r;
+        diff_Z_all[1][2] += 2.0*ds0val*distz/r;
+      } else Z += 1.0;
 
       s0j[j] = s0val;
       s1j[j] = s1val;
@@ -1021,6 +1051,13 @@ void ComputeQ6SmoothAtom::compute_all()
          * step 1
          */
         Gi[i] += s3val * Ni[j];
+
+        W += s3val;
+        diff_W_all[i][0] += 2.0 * ds3 * distx / r;  // factor 2.0 for ij+ji convention
+        diff_W_all[i][1] += 2.0 * ds3 * disty / r;
+        diff_W_all[i][2] += 2.0 * ds3 * distz / r;
+
+
       }
     }
 
@@ -1107,6 +1144,7 @@ void ComputeQ6SmoothAtom::compute_all()
 
         s0(r, s0val, ds0);
         s1(cij, s1val, ds1);
+
     
         // it contributes to the Nj that is the reason why ds2i[j]
         // Gi[j] contains the s3val
@@ -1273,16 +1311,19 @@ void ComputeQ6SmoothAtom::compute_all()
   MPI_Allreduce(&Q6_sum, &Q6_sum_all, 1, MPI_DOUBLE, MPI_SUM, world);
   MPI_Allreduce(&phi_sum, &phi_sum_all, 1, MPI_DOUBLE, MPI_SUM, world);
   MPI_Allreduce(&num_selected, &num_selected_all, 1, MPI_INT, MPI_SUM, world);
-
-
+  MPI_Allreduce(&Z,&Z_all,1,MPI_DOUBLE,MPI_SUM,world);
+  MPI_Allreduce(&W,&W_all,1,MPI_DOUBLE,MPI_SUM,world);
 
 
   double num_double = static_cast<double>(num_selected_all);
+  double Z_avg = Z_all / num_double;
   double scaling = 0.0;
+
+  const double eps = 1e-20;
   if (mode & (N_MODE | SIMPLE_N_MODE))
-    scaling = (num_double >= 1 ? 1.0/num_double : 0.0);
+    scaling = (Z_all >= eps ? 1.0/Z_all : 0.0);
   else if (mode & (PHI_MODE | SIMPLE_PHI_MODE))
-    scaling = (num_double >= 2 ? 2.0 / (num_double * (num_double - 1.0)) : 0.0);
+    scaling = (Z_avg*Z_avg*W_all >= eps ?1.0/(Z_avg*Z_avg*W_all):0.0);
   phi_sum_all *= scaling;
   Q6_sum_all *= scaling;
   
@@ -1295,8 +1336,21 @@ void ComputeQ6SmoothAtom::compute_all()
     i = ilist[ii];
     jnum = numneigh[i];
     jlist = firstneigh[i];
+    
     if (!(mask[i] & groupbit)) continue;
     if (!(mode & ALL_TYPES) && type[i] != chosen_type) continue;
+
+    if ( (mode & (PHI_MODE | SIMPLE_PHI_MODE)) && !(mode & NO_DIFF) ) {
+      // diff of Z_avg 
+      diff_Z_all[i][0] /= num_double;
+      diff_Z_all[i][1] /= num_double;
+      diff_Z_all[i][2] /= num_double;
+      // calculating the diff of (Zavg^2*W_all)
+      // 2*Zavg*diff_Zavg*W_all + Zavg^2*diff_W_all
+      diff_Z_all[i][0] = 2.0*Z_avg*diff_Z_all[i][0]*W_all+Z_avg*Z_avg*diff_W_all[i][0];
+      diff_Z_all[i][1] = 2.0*Z_avg*diff_Z_all[i][1]*W_all+Z_avg*Z_avg*diff_W_all[i][1];
+      diff_Z_all[i][2] = 2.0*Z_avg*diff_Z_all[i][2]*W_all+Z_avg*Z_avg*diff_W_all[i][2];
+    }
 
     array_atom[i][val_col] *= scaling;
     if (!(mode & NO_DIFF)) {
@@ -1306,6 +1360,17 @@ void ComputeQ6SmoothAtom::compute_all()
       double x_comp = array_atom[i][diff_x_col];
       double y_comp = array_atom[i][diff_y_col];
       double z_comp = array_atom[i][diff_z_col];
+
+      // diff(x*s) = s*diffx + diffs*x;
+      // here we are adding the x*diffs
+      // s = 1/Z
+      // x*diffs = -x*diffZ/Z^2
+      // x*diffs = -xscaled * diffZ/Z
+      // x*diffs = -xscaled * scaling*diffZ (scaling = 1/Z)
+      array_atom[i][diff_x_col] += -scalar*scaling*diff_Z_all[i][0];
+      array_atom[i][diff_y_col] += -scalar*scaling*diff_Z_all[i][1];
+      array_atom[i][diff_z_col] += -scalar*scaling*diff_Z_all[i][2];
+
       double slope = std::sqrt(x_comp * x_comp + y_comp * y_comp + z_comp * z_comp);
       if (slope < min_slope) {
         const double target = std::abs(rng->gaussian()) * min_slope; // >= 0
