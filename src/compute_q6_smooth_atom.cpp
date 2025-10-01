@@ -1564,7 +1564,8 @@ void ComputeQ6SmoothAtom::dist(const double &input, const double &cutoff, double
 
   // avoiding dead gradient
   if (std::abs(diff) <= min_slope)
-  if (x > 0.0 || x < 1.0)
+  
+  if (x > 0.0 && x < 1.0)
      diff = -smooth_floor(-diff,min_slope);
 }
 
