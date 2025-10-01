@@ -44,6 +44,7 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   int chosen_type;
   double cutoff;
   int switch_flag;
+  double min_slope;
 
   // the real part of q6ms for each atom
   // nmax X 13
@@ -99,16 +100,18 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   static constexpr int second_val_col = 5;
 
   // helper functions
+  double threshold0 = 0.85;
   double beta1 = 25.0;    //8.0;
   double x01 = 0.65;      //0.5;
   double beta2 = 7.0;
   double x02 = 2.5;
+  double threshold3 = 0.85;
   static void orient(const double &input, const double &beta, const double &x0, double &output,
-                     double &diff);
+                     double &diff,const double& min_slope);
 
   static constexpr int dist_deg = 6;
   static constexpr double dist_coeffs[6] = {1.0, 0.0, 0.0, -10.0, 15.0, -6.0};
-  static void dist(const double &input, const double &cutoff, double &output, double &diff);
+  static void dist(const double &input, const double &cutoff, double &output, double &diff,const double& min_slope, const double& threshold);
 
   // Just for debugging.
   static  inline void unit(const double &input,  double &output, double &diff) {

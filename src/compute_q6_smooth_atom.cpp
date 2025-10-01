@@ -45,13 +45,12 @@ enum { Q6_FOR_STRIDE = 26, N_FOR_STRIDE = 1, G_FOR_STRIDE = 1 , DS2_FOR_STRIDE =
 enum { NONE = 0, S0_SW=1<<0, S1_SW=1<<1, S2_SW=1<<2, S3_SW=1<<3};
 
 
-// parameter to avoid dead gradient issue.
-static double constexpr min_slope = 0.02;
 
 /* ---------------------------------------------------------------------- */
 
 ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
-    ComputeDiffAtom{lmp, narg, arg}, mode{N_MODE}, chosen_type{-1}, switch_flag{0}, cutoff{3.2},
+    ComputeDiffAtom{lmp, narg, arg}, mode{N_MODE}, chosen_type{-1}, 
+    switch_flag{0}, cutoff{3.2}, min_slope{0.02},
     q6ms_real{nullptr}, q6ms_imag{nullptr}, diff_q6ms_real{nullptr}, diff_q6ms_imag{nullptr},
     inv_q6_norm_i{nullptr}, inv_nbnum_i{nullptr},
     Ni{nullptr}, ds2i{nullptr}, diff_Ni{nullptr}, diff_Ntotal{nullptr}, gi_real{nullptr},
@@ -98,16 +97,28 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
     } else if (strcmp(arg[iarg], "S3_off") == 0) {
       switch_flag &= ~S3_SW;
       iarg++;
+    } else if (strcmp(arg[iarg], "S0") == 0) {
+      if (iarg + 1 >= narg) error->all(FLERR, "Missing parameters after S0");
+      threshold0 = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
+      iarg+=2;
     } else if (strcmp(arg[iarg], "S1") == 0) {
       if (iarg + 2 >= narg) error->all(FLERR, "Missing parameters after S1");
       beta1 = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
       x01 = utils::numeric(FLERR, arg[iarg + 2], false, lmp);
       iarg+=3;
     } else if (strcmp(arg[iarg], "S2") == 0) {
-      if (iarg + 2 >= narg) error->all(FLERR, "Missing parametersafter S2");
+      if (iarg + 2 >= narg) error->all(FLERR, "Missing parameters after S2");
       beta2 = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
       x02 = utils::numeric(FLERR, arg[iarg + 2], false, lmp);
       iarg+=3;
+    } else if (strcmp(arg[iarg], "S3") == 0) {
+      if (iarg + 1 >= narg) error->all(FLERR, "Missing parameters after S3");
+      threshold3 = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
+      iarg+=2;
+    } else if (strcmp(arg[iarg], "min_slope") == 0) {
+      if (iarg + 1 >= narg) error->all(FLERR, "Missing parameters after S3");
+      min_slope = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
+      iarg+=2;
     } else
       error->all(FLERR, "Illegal compute q6-smooth/atom command");
   }
@@ -195,7 +206,6 @@ ComputeQ6SmoothAtom::~ComputeQ6SmoothAtom()
   if (hj2) memory->destroy(hj2);
   if (diff_Z_all) memory->destroy(diff_Z_all);
   if (diff_W_all) memory->destroy(diff_W_all);
-  if (hj2) memory->destroy(hj2);
   if (s0j) memory->destroy(s0j);
   if (s1j) memory->destroy(s1j);
   if (ds0j) memory->destroy(ds0j);
@@ -292,9 +302,9 @@ void ComputeQ6SmoothAtom::compute_all()
   // Z is the normalization factor for N
   double Z = 0.0;
   double Z_all = 0.0;
-  // Phi = sigma(Ni*Nj*s0(rij))
-  // W = sigma(s0(rij))
-  // W is the normalization factor for phi
+  // Phi = sigma(Ni*Nj*s3(rij))
+  // W = sigma(s3(rij))
+  // Zavg^2*W is the normalization factor for phi
   double W = 0.0;
   double W_all = 0.0;
 
@@ -334,25 +344,25 @@ void ComputeQ6SmoothAtom::compute_all()
   // lambda functions
   auto s0 = [&](const double &input, double &output, double &diff) {
     if (switch_flag & S0_SW)
-      dist(input,cutoff,output,diff);
+      dist(input,cutoff,output,diff,min_slope,threshold0);
     else
       unit(input,output,diff);
   };
   auto s1 = [&](const double &input, double &output, double &diff) {
     if (switch_flag & S1_SW)
-      orient(input, beta1, x01, output, diff);
+      orient(input, beta1, x01, output, diff,min_slope);
     else
       unit(input,output,diff);
   };
   auto s2 = [&](const double &input, double &output, double &diff) {
     if (switch_flag & S2_SW)
-      orient(input, beta2, x02, output, diff);
+      orient(input, beta2, x02, output, diff,min_slope);
     else
       unit(input,output,diff);
   };
   auto s3 = [&](const double &input, double &output, double &diff) {
     if (switch_flag & S3_SW)
-      dist(input, cutoff, output, diff);
+      dist(input, cutoff, output, diff,min_slope,threshold3);
     else
       unit(input,output,diff);
   };
@@ -639,9 +649,11 @@ void ComputeQ6SmoothAtom::compute_all()
 
       if (switch_flag & S0_SW) {
         Z += s0val;
-        diff_Z_all[i][0] += 2.0*ds0val*distx/r;
-        diff_Z_all[i][1] += 2.0*ds0val*disty/r;
-        diff_Z_all[1][2] += 2.0*ds0val*distz/r;
+        if (!(mode & NO_DIFF)) {
+          diff_Z_all[i][0] += 2.0*ds0val*distx/r;
+          diff_Z_all[i][1] += 2.0*ds0val*disty/r;
+          diff_Z_all[i][2] += 2.0*ds0val*distz/r;
+        }
       } else Z += 1.0;
 
       s0j[j] = s0val;
@@ -828,7 +840,7 @@ void ComputeQ6SmoothAtom::compute_all()
   }
 
 
-  // The S2_SW brakes the symmetery
+  // The S2_SW breakes the symmetry
   if (!(mode & NO_DIFF) && (switch_flag & S2_SW)) {
     comm_forward = DS2_FOR_STRIDE;
     forward_mode = DS2_TRANSFER;
@@ -1053,9 +1065,12 @@ void ComputeQ6SmoothAtom::compute_all()
         Gi[i] += s3val * Ni[j];
 
         W += s3val;
-        diff_W_all[i][0] += 2.0 * ds3 * distx / r;  // factor 2.0 for ij+ji convention
-        diff_W_all[i][1] += 2.0 * ds3 * disty / r;
-        diff_W_all[i][2] += 2.0 * ds3 * distz / r;
+        
+        if (!(mode & NO_DIFF)) {
+          diff_W_all[i][0] += 2.0 * ds3 * distx / r; // factor 2.0 for ij+ji convention
+          diff_W_all[i][1] += 2.0 * ds3 * disty / r;
+          diff_W_all[i][2] += 2.0 * ds3 * distz / r;
+        }
 
 
       }
@@ -1530,23 +1545,23 @@ void ComputeQ6SmoothAtom::unpack_reverse_comm(int n, int *list, double *buf)
 /* ---------------------------------------------------------------------- */
 
 void ComputeQ6SmoothAtom::orient(const double &input, const double &beta, const double &x0,
-                                 double &output, double &diff)
+                                 double &output, double &diff,const double& min_slope)
 {
   output = 1.0 / (1.0 + std::exp(-beta * (input - x0)));
   diff = beta * output * (1.0 - output);
 
   // avoiding dead gradient
-  if (std::abs(diff) <= min_slope) smooth_floor(diff,min_slope);
+  if (std::abs(diff) <= min_slope) diff = smooth_floor(diff,min_slope);
 }
 
 /* --------------------------------------------------------------------- */
 
 void ComputeQ6SmoothAtom::dist(const double &input, const double &cutoff, double &output,
-                               double &diff)
+                               double &diff, const double& min_slope, const double& threshold)
 {
   diff = output = 0.0;
   const double *const coeff = dist_coeffs;
-  double r0 = 0.85 * cutoff;
+  double r0 = threshold * cutoff;
   double x = (input - r0) / (cutoff - r0);
   if (x <= 0.0) {
     output = 1.0;
@@ -1564,7 +1579,7 @@ void ComputeQ6SmoothAtom::dist(const double &input, const double &cutoff, double
 
   // avoiding dead gradient
   if (std::abs(diff) <= min_slope)
-  
+
   if (x > 0.0 && x < 1.0)
      diff = -smooth_floor(-diff,min_slope);
 }
