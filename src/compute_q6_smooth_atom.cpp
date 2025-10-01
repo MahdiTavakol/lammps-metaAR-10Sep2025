@@ -36,7 +36,7 @@ using namespace LAMMPS_NS;
 enum { Q6_TRANSFER = 1 << 0, N_TRANSFER = 1 << 1, G_TRANSFER = 1 << 2, DS2_TRANSFER = 1 << 3 };
 
 // Execution flags
-enum { N_MODE = 1 << 0, PHI_MODE = 1 << 1, SIMPLE_PHI_MODE = 1 << 2, SIMPLE_N_MODE = 1 << 3, NO_DIFF = 1 << 4 };
+enum { N_MODE = 1 << 0, PHI_MODE = 1 << 1, SIMPLE_PHI_MODE = 1 << 2, SIMPLE_N_MODE = 1 << 3, NO_DIFF = 1 << 4, ALL_TYPES = 1 << 5 };
 
 // Transfer strides
 enum { Q6_FOR_STRIDE = 26, N_FOR_STRIDE = 1, G_FOR_STRIDE = 1 , DS2_FOR_STRIDE = 1, N_REV_STRIDE = 3, S_REV_STRIDE=6};
@@ -62,6 +62,9 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
   chosen_type = utils::numeric(FLERR, arg[3], false, lmp);
   cutoff = utils::numeric(FLERR, arg[4], false, lmp);
 
+  if (chosen_type == -1)
+    mode |= ALL_TYPES;
+
   // before calling the comm->forward this parameter is set since it has two different values.
   comm_forward = Q6_FOR_STRIDE;
   comm_reverse = N_REV_STRIDE;
@@ -80,7 +83,7 @@ ComputeQ6SmoothAtom::ComputeQ6SmoothAtom(LAMMPS *lmp, int narg, char **arg) :
       mode |= NO_DIFF;
       iarg++;
     } else if (strcmp(arg[iarg], "phi") == 0) {
-      mode = (mode & NO_DIFF) | PHI_MODE;
+      mode = (mode & !N_MODE) | PHI_MODE;
       iarg++;
     } else if (strcmp(arg[iarg], "S0_off") == 0) {
       switch_flag &= ~S0_SW;
@@ -352,7 +355,8 @@ void ComputeQ6SmoothAtom::compute_all()
     jnum = numneigh[i];
     jlist = firstneigh[i];
 
-    if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
+    if (!(mask[i] & groupbit)) continue;
+    if (!(mode & ALL_TYPES) && type[i] != chosen_type) continue;
     num_selected++;
 
     int nbnum = 0;
@@ -538,7 +542,8 @@ void ComputeQ6SmoothAtom::compute_all()
     i = ilist[ii];
     jnum = numneigh[i];
     jlist = firstneigh[i];
-    if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
+    if (!(mask[i] & groupbit)) continue;
+    if (!(mode & ALL_TYPES) && type[i] != chosen_type) continue;
 
     double Si = 0.0;
     //resetting neighbor variables
@@ -803,7 +808,8 @@ void ComputeQ6SmoothAtom::compute_all()
       i = ilist[ii];
       jnum = numneigh[i];
       jlist = firstneigh[i];
-      if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
+      if (!(mask[i] & groupbit)) continue;
+      if (!(mode & ALL_TYPES) && type[i] != chosen_type) continue;
 
       double gi_prime_real[Q6_ARRAY_SIZE];
       double gi_prime_imag[Q6_ARRAY_SIZE];
@@ -900,7 +906,8 @@ void ComputeQ6SmoothAtom::compute_all()
     // Adding the contribution of atom j to the diffN_total/dri or diffNi/diffri
     for (ii = 0; ii < inum; ii++) {
       i = ilist[ii];
-      if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
+      if (!(mask[i] & groupbit)) continue;
+      if (!(mode & ALL_TYPES) && type[i] != chosen_type) continue;
 
       const double diff_x = hj[i][0];
       const double diff_y = hj[i][1];
@@ -994,7 +1001,8 @@ void ComputeQ6SmoothAtom::compute_all()
       i = ilist[ii];
       jnum = numneigh[i];
       jlist = firstneigh[i];
-      if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
+      if (!(mask[i] & groupbit)) continue;
+      if (!(mode & ALL_TYPES) && type[i] != chosen_type) continue;
 
       for (jj = 0; jj < jnum; jj++) {
         j = jlist[jj];
@@ -1030,7 +1038,8 @@ void ComputeQ6SmoothAtom::compute_all()
       i = ilist[ii];
       jnum = numneigh[i];
       jlist = firstneigh[i];
-      if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
+      if (!(mask[i] & groupbit)) continue;
+      if (!(mode & ALL_TYPES) && type[i] != chosen_type) continue;
 
       // phi[i] = Ni[i] * sigma(Kij*Ni[j]) = Ni[i]*Gi[i]
       array_atom[i][val_col] += Ni[i] * Gi[i];
@@ -1228,7 +1237,8 @@ void ComputeQ6SmoothAtom::compute_all()
       comm->reverse_comm(this);
       for (ii = 0; ii < inum; ii++) {
         i = ilist[ii];
-        if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
+        if (!(mask[i] & groupbit)) continue;
+        if (!(mode & ALL_TYPES) && type[i] != chosen_type) continue;
 
         /*
          * step 6
@@ -1247,7 +1257,8 @@ void ComputeQ6SmoothAtom::compute_all()
   if (mode & SIMPLE_PHI_MODE) {
     for (int ii = 0; ii < inum; ii++) {
       i = ilist[ii];
-      if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
+      if (!(mask[i] & groupbit)) continue;
+      if (!(mode & ALL_TYPES) && type[i] != chosen_type) continue;
       
       array_atom[i][val_col] += Ni[i]*Gi[i];
 
@@ -1284,7 +1295,8 @@ void ComputeQ6SmoothAtom::compute_all()
     i = ilist[ii];
     jnum = numneigh[i];
     jlist = firstneigh[i];
-    if (type[i] != chosen_type || !(mask[i] & groupbit)) continue;
+    if (!(mask[i] & groupbit)) continue;
+    if (!(mode & ALL_TYPES) && type[i] != chosen_type) continue;
 
     array_atom[i][val_col] *= scaling;
     if (!(mode & NO_DIFF)) {

@@ -35,8 +35,14 @@ using namespace LAMMPS_NS;
 ComputeCParamAtom::ComputeCParamAtom(LAMMPS *lmp, int narg, char **arg) :
     ComputeDiffAtom{lmp, narg, arg}, n{6}, r0{3.0}
 {
-  n = utils::numeric(FLERR, arg[3], false, lmp);
-  r0 = utils::numeric(FLERR, arg[4], false, lmp);
+  if (narg == 3)
+    return;
+  else if (narg == 5) {
+    n = utils::numeric(FLERR, arg[3], false, lmp);
+    r0 = utils::numeric(FLERR, arg[4], false, lmp);
+  } else {
+    error->all(FLERR, "Illegal compute cparam/atom command");
+  }
 }
 
 /* ---------------------------------------------------------------------- */
