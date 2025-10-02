@@ -56,6 +56,8 @@ void ComputeCParamAtom::compute_all()
   double **x = atom->x;
 
   int *mask = atom->mask;
+
+  neighbor->build_one(list);
  
 
 

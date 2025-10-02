@@ -62,9 +62,9 @@ void ComputeDiffAtom::init()
   int list_flags = NeighConst::REQ_FULL;    // The Full neighbor list is needed to have both the ij and ji pairs
 
   // need neighbors of the ghost atoms
-  list_flags |= NeighConst::REQ_GHOST; // I need the ghost atoms to be included in the neighbor list
+  //list_flags |= NeighConst::REQ_GHOST; // I do not need the neighbors of ghost atoms
   // Occasional neighbor list build
-  // list_flags |= NeighConst::REQ_OCCASIONAL;
+  list_flags |= NeighConst::REQ_OCCASIONAL;
 
   // request for a neighbor list
   request = neighbor->add_request(this, list_flags);

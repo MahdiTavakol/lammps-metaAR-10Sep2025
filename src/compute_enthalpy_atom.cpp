@@ -48,6 +48,7 @@ void ComputeEnthalpyAtom::compute_all()
   int *type = atom->type;
   int *mask = atom->mask;
 
+  neighbor->build_one(list);
   
   bool pairflag = true;
 
