@@ -24,7 +24,7 @@ namespace LAMMPS_NS {
 #define XSTR(val) #val
 
 // Test fixture matching the LAMMPS unittest harness
-class PeVsUcTest : public LAMMPSTest {
+class PeVsUCTest : public LAMMPSTest {
 protected:
     void SetUp() override
     {
@@ -69,7 +69,9 @@ protected:
     }
 };
 
-TEST_F(PeVsUcTest, ComparePeWithUc_PerAtomAndTotals)
+
+
+TEST_F(PeVsUCTest, ComparePeWithUc_PerAtomAndTotals)
 {
     // Skip when there are no atoms (e.g., if in.fourmol wasn't included)
     if (lammps_get_natoms(lmp) == 0.0) GTEST_SKIP();
