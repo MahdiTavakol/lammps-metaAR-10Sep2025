@@ -55,7 +55,7 @@ protected:
 
         setupBox();
 
-        command("read_data ${input_dir}/ti_uc/data.dat");
+        command("read_data ${input_dir}/data.30000000-0.46");
 )
         command("group HAp type <= 5");
         END_HIDE_OUTPUT();
@@ -169,13 +169,27 @@ TEST_F(LJChangeTest, UA_UB_Equals_PE_From_Separate_Input_ChangeLJ)
     // your test data
     command("read_data ${input_dir}/ti_uc/data.dat");
 
+    const double LJ0 = 0.0800014955;
+    const double LJ1 = 0.0400000000;
+    const double lambda = 0.46;
+    const double dlambda = 0.02;
+
+    char* string1[256];
+    char* string2[256];
+
+    sprintf(string1, "compute TIAll all thermo_integ %0.4f %0.4f 
+            single 2 10 11 
+            pair lj/charmm/coul/long %12.10f %12.10f 0.0 0.0 ",
+            lambda,dlambda,LJ0,LJ1);
+
+    sprintf(string2,"compute TIHAp HAp thermo_integ %0.4f %0.4f 
+            single 2 10 11 
+            pair lj/charmm/coul/long %12.10f %12.10f 0.0 0.0 ",
+            lambda,dlambda,LJ0,LJ1)
+
     // thermo_integ: U_A is index [4]  and U_B is index [5]
-    command("compute TIAll all thermo_integ 0.46 0.02 "
-            "single 2 10 11 "
-            "pair lj/charmm/coul/long 0.0800014955 0.0400000000 0.0 0.0 ");
-    command("compute TIHAp HAp thermo_integ 0.46 0.02 "
-            "single 2 10 11 "
-            "pair lj/charmm/coul/long 0.0800014955 0.0400000000 0.0 0.0 ");
+    command(string1);
+    command(string2);
     command("variable UA_All equal c_TIAll[4]");
     command("variable UA_HAp equal c_TIHAp[4]");
     command("variable UB_HAp equal c_TIHAp[5]");
@@ -197,7 +211,7 @@ TEST_F(LJChangeTest, UA_UB_Equals_PE_From_Separate_Input_ChangeLJ)
 
     // include your separate reference input (sets units/styles/read_data)
     // file path: unittest/inputs/ti_uc/pe_ref.in
-    command("include \"${input_dir}/ti_uc/pe_ref.in\"");
+    command("include \"${input_dir}/data.30000000-0.46-LJA-0.02\"");
 
 
     // --- Potential energy over ALL and over HAp (pair + kspace only)
@@ -229,7 +243,7 @@ TEST_F(LJChangeTest, UA_UB_Equals_PE_From_Separate_Input_ChangeLJ)
     
     // include your separate reference input (sets units/styles/read_data)
     // file path: unittest/inputs/ti_uc/pe_ref.in
-    command("include \"${input_dir}/ti_uc/pe_ref.in\"");
+    command("include \"${input_dir}/data.30000000-0.46-LJB-0.02\"");
     
     
     // --- Potential energy over ALL and over HAp (pair + kspace only)
