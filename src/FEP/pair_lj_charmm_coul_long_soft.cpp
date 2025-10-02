@@ -22,7 +22,6 @@
 #include "atom.h"
 #include "comm.h"
 #include "error.h"
-#include "ewald_const.h"
 #include "force.h"
 #include "kspace.h"
 #include "memory.h"
@@ -35,7 +34,14 @@
 #include <cstring>
 
 using namespace LAMMPS_NS;
-using namespace EwaldConst;
+
+#define EWALD_F   1.12837917
+#define EWALD_P   0.3275911
+#define A1        0.254829592
+#define A2       -0.284496736
+#define A3        1.421413741
+#define A4       -1.453152027
+#define A5        1.061405429
 
 /* ---------------------------------------------------------------------- */
 
@@ -669,7 +675,7 @@ void PairLJCharmmCoulLongSoft::coeff(int narg, char **arg)
     }
   }
 
-  if (count == 0) error->all(FLERR,"Incorrect args for pair coefficients" + utils::errorurl(21));
+  if (count == 0) error->all(FLERR,"Incorrect args for pair coefficients");
 }
 
 /* ----------------------------------------------------------------------
@@ -686,7 +692,7 @@ void PairLJCharmmCoulLongSoft::init_style()
   int list_style = NeighConst::REQ_DEFAULT;
 
   if (update->whichflag == 1 && utils::strmatch(update->integrate_style, "^respa")) {
-    auto *respa = dynamic_cast<Respa *>(update->integrate);
+    auto respa = dynamic_cast<Respa *>(update->integrate);
     if (respa->level_inner >= 0) list_style = NeighConst::REQ_RESPA_INOUT;
     if (respa->level_middle >= 0) list_style = NeighConst::REQ_RESPA_ALL;
   }
@@ -733,8 +739,9 @@ double PairLJCharmmCoulLongSoft::init_one(int i, int j)
     epsilon[i][j] = mix_energy(epsilon[i][i],epsilon[j][j],
                                sigma[i][i],sigma[j][j]);
     sigma[i][j] = mix_distance(sigma[i][i],sigma[j][j]);
-    if (lambda[i][i] != lambda[j][j])
-      error->all(FLERR,"Pair lj/charmm/coul/long/soft different lambda values in mix");
+    lambda[i][j] = sqrt(lambda[i][i]*lambda[j][j]);
+    //if (lambda[i][i] != lambda[j][j])
+    //  error->all(FLERR,"Pair lj/charmm/coul/long/soft different lambda values in mix");
     lambda[i][j] = lambda[i][i];
     eps14[i][j] = mix_energy(eps14[i][i],eps14[j][j],
                                sigma14[i][i],sigma14[j][j]);
