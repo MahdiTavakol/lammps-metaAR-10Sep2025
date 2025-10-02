@@ -23,6 +23,21 @@ namespace LAMMPS_NS {
 #define STRINGIFY(val) XSTR(val)
 #define XSTR(val) #val
 
+static void setupBox() {
+    command("units          real");
+    command("atom_style     full");
+    command("boundary       p p p");
+    command("neigh_modify   delay 1");
+    command("neighbor       2 bin");
+
+    command("bond_style     harmonic");
+    command("angle_style    harmonic");
+    command("dihedral_style harmonic");
+    command("improper_style harmonic");
+    command("pair_style     lj/charmm/coul/long 10 12");
+    command("kspace_style   pppm 1.0e-6");
+}
+
 // Test fixture matching the LAMMPS unittest harness
 class PeVsUCTest : public LAMMPSTest {
 protected:
@@ -38,19 +53,7 @@ protected:
         // TEST_INPUT_FOLDER is provided by the LAMMPS test harness
         command("variable input_dir index \"" STRINGIFY(TEST_INPUT_FOLDER) "\"");
 
-        // --- match your production script BEFORE read_data ---
-        command("units          real");
-        command("atom_style     full");
-        command("boundary       p p p");
-        command("neigh_modify   delay 1");
-        command("neighbor       2 bin");
-
-        command("bond_style     harmonic");
-        command("angle_style    harmonic");
-        command("dihedral_style harmonic");
-        command("improper_style harmonic");
-        command("pair_style     lj/charmm/coul/long 10 12");
-        command("kspace_style   pppm 1.0e-6");
+        setupBox();
 
         command("read_data ${input_dir}/ti_uc/data.dat");
 )
@@ -66,6 +69,29 @@ protected:
     static double get_var_equal(lammps *lmp, const char *name) {
         // equal-style variables return a pointer to a double
         return *static_cast<double *>(lammps_extract_variable(lmp, name, nullptr));
+    }
+};
+
+class LJChangeTest : public LAMMPSTest {
+protected:
+    void SetUp() override {
+        testbinary = "LJChangeTest";
+        LAMMPSTest::SetUp();
+   
+        // Skip gracefully if required pieces aren't built
+        if (!info->has_style("compute", "thermo_integ")) GTEST_SKIP();
+
+        setupBox();
+        
+    }
+    
+    static double get_equal(lammps* lmp, const char* name) {
+        return *static_cast<double*>(lammps_extract_variable(lmp, name, nullptr));
+    }
+
+    static double get_compute_scalar(lammps* lmp, const char* id) {
+        return *static_cast<double*>(
+            lammps_extract_compute(lmp, id, LMP_STYLE_GLOBAL, LMP_TYPE_SCALAR));
     }
 };
 
@@ -133,6 +159,106 @@ TEST_F(PeVsUCTest, ComparePeWithUc_PerAtomAndTotals)
     EXPECT_NEAR(peA, uC_All, tol_pa);
     EXPECT_NEAR(peB, uC_HAp, tol_pa);
 
+}
+
+
+TEST_F(LJChangeTest, UA_UB_Equals_PE_From_Separate_Input_ChangeLJ)
+{
+    BEGIN_HIDE_OUTPUT();
+
+    // your test data
+    command("read_data ${input_dir}/ti_uc/data.dat");
+
+    // thermo_integ: U_A is index [4]  and U_B is index [5]
+    command("compute TIAll all thermo_integ 0.46 0.02 "
+            "single 2 10 11 "
+            "pair lj/charmm/coul/long 0.0800014955 0.0400000000 0.0 0.0 ");
+    command("compute TIHAp HAp thermo_integ 0.46 0.02 "
+            "single 2 10 11 "
+            "pair lj/charmm/coul/long 0.0800014955 0.0400000000 0.0 0.0 ");
+    command("variable UA_All equal c_TIAll[4]");
+    command("variable UA_HAp equal c_TIHAp[4]");
+    command("variable UB_HAp equal c_TIHAp[5]");
+    command("variable UB_HAp equal c_TIHAp[5]");
+
+    command("thermo_style custom v_UA_All v_UA_HAp v_UB_All v_UB_HAp");
+    command("run 0 post no");
+    END_HIDE_OUTPUT();
+
+    const double UA_All = get_equal(lmp, "UA_All");
+    const double UA_HAp = get_equal(lmp, "UA_HAp");
+    const double UB_All = get_equal(lmp, "UB_All");
+    const double UB_HAp = get_equal(lmp, "UB_HAp");
+
+    // -------- 2) Second simulation: UA from another input --------------
+    BEGIN_HIDE_OUTPUT();
+    command("clear");
+    command("variable input_dir index \"" STRINGIFY(TEST_INPUT_FOLDER) "\"");
+
+    // include your separate reference input (sets units/styles/read_data)
+    // file path: unittest/inputs/ti_uc/pe_ref.in
+    command("include \"${input_dir}/ti_uc/pe_ref.in\"");
+
+
+    // --- Potential energy over ALL and over HAp (pair + kspace only)
+    command("compute pe_atom HAp pe/atom pair kspace");
+    command("compute pe_all  all pe      pair kspace");
+    command("compute pe_HAp  HAp reduce  sum c_pe_atom");
+    
+    // Counts
+    command("variable cAll equal count(all)");
+    command("variable cHAp equal count(HAp)");
+    
+    // Averages we want to compare
+    command("variable RefA_All equal c_pe_all/v_cAll"); // average PE over all atoms
+    command("variable RefA_HAp equal c_pe_HAp/v_cHAp"); // average PE over HAp
+
+    command("thermo_style custom v_RefA_All v_RefA_HAp");
+    command("run 0 post no");
+
+    END_HIDE_OUTPUT();
+
+    const double RefA_All = get_equal(lmp,"RefA_All");
+    const double RefA_HAp = get_equal(lmp,"RefA_HAp");
+
+
+    // -------- 2) Second simulation: UA from another input --------------
+    BEGIN_HIDE_OUTPUT();
+    command("clear");
+    command("variable input_dir index \"" STRINGIFY(TEST_INPUT_FOLDER) "\"");
+    
+    // include your separate reference input (sets units/styles/read_data)
+    // file path: unittest/inputs/ti_uc/pe_ref.in
+    command("include \"${input_dir}/ti_uc/pe_ref.in\"");
+    
+    
+    // --- Potential energy over ALL and over HAp (pair + kspace only)
+    command("compute pe_atom HAp pe/atom pair kspace");
+    command("compute pe_all  all pe      pair kspace");
+    command("compute pe_HAp  HAp reduce  sum c_pe_atom");
+        
+    // Counts
+    command("variable cAll equal count(all)");
+    command("variable cHAp equal count(HAp)");
+        
+    // Averages we want to compare
+    command("variable RefB_All equal c_pe_all/v_cAll"); // average PE over all atoms
+    command("variable RefB_HAp equal c_pe_HAp/v_cHAp"); // average PE over HAp
+    
+    command("thermo_style custom v_RefB_All v_RefB_HAp");
+    command("run 0 post no");
+    
+    END_HIDE_OUTPUT();
+    
+    const double RefB_All = get_equal(lmp,"RefA_All");
+    const double RefB_HAp = get_equal(lmp,"RefB_HAp");
+
+    // -------- 3) Compare ------------------------------------------------
+    const double tol_tot = 1e-3;
+    EXPECT_NEAR(UA_All, RefA_All, tol_tot);
+    EXPECT_NEAR(UA_HAp, RefA_HAp, tol_tot);
+    EXPECT_NEAR(UB_All, RefB_All, tol_tot);
+    EXPECT_NEAR(UB_HAp, RefB_HAp, tol_tot);
 }
 
 } // namespace LAMMPS_NS
