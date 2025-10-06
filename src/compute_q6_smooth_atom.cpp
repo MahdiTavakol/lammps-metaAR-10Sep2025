@@ -1441,7 +1441,7 @@ void ComputeQ6SmoothAtom::compute_all()
   }
 
   MPI_Allreduce(&slopeModType,&slopeModTypeAll,1,MPI_DOUBLE,MPI_SUM,world);
-  vector[2] = slopModeTypeAll;
+  vector[2] = slopModeTypeAll / num_double;
 
   //scalar = num_selected_all ? Q6_sum_all / static_cast<double>(num_selected_all) :0.0;
 }
