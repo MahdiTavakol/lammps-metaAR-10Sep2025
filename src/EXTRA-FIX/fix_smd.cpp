@@ -469,7 +469,6 @@ void FixSMD::smd_compute()
   const int diff_z_col = cmpt->diff_z_col;
   double** cmpt_array_atom = cmpt->array_atom;
 
-  double fcv;
 
   bigint ntimestep = update->ntimestep;
   if (ntimestep == 0) {
@@ -480,21 +479,19 @@ void FixSMD::smd_compute()
   ftotal[0] = ftotal[1] = ftotal[2] = 0.0;
   force_flag = 0;
 
-  double dr = r_now - r0 - r_old;
+  double dr = r_now - r_old - r0 ;
   if (styleflag & SMD_CVEL) {
-		fcv = k_smd*dr;
-  } else {
-	  fcv = f_smd;
-  }
+		f_smd = -k_smd*dr;
+  } 
 
 
   for (int i = 0; i < nlocal; i++) {
-    f[i][0] -= cmpt_array_atom[i][diff_x_col]*fcv;
-    f[i][1] -= cmpt_array_atom[i][diff_y_col]*fcv;
-    f[i][2] -= cmpt_array_atom[i][diff_z_col]*fcv;
-    ftotal[0] -= cmpt_array_atom[i][diff_x_col]*fcv;
-    ftotal[1] -= cmpt_array_atom[i][diff_y_col]*fcv;
-    ftotal[2] -= cmpt_array_atom[i][diff_z_col]*fcv;
+    f[i][0] += cmpt_array_atom[i][diff_x_col]*f_smd;
+    f[i][1] += cmpt_array_atom[i][diff_y_col]*f_smd;
+    f[i][2] += cmpt_array_atom[i][diff_z_col]*f_smd;
+    ftotal[0] += cmpt_array_atom[i][diff_x_col]*f_smd;
+    ftotal[1] += cmpt_array_atom[i][diff_y_col]*f_smd;
+    ftotal[2] += cmpt_array_atom[i][diff_z_col]*f_smd;
   }
 
 }
@@ -674,11 +671,12 @@ double FixSMD::compute_vector(int n)
     force_flag = 1;
     if (styleflag & SMD_CVEL) {
       ftotal_all[3]=ftotal_all[0]*xn+ftotal_all[1]*yn+ftotal_all[2]*zn;
-      ftotal_all[4]=r_old;
     } else {
       ftotal_all[3]=f_smd;
-      ftotal_all[4]=r_old;
     }
+    if (styleflag & SMD_COMPUTE)
+      ftotal_all[3] = f_smd;
+    ftotal_all[4]=r_old;
     ftotal_all[5]=r_now;
     ftotal_all[6]=pmf;
   }

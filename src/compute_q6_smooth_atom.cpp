@@ -1363,6 +1363,9 @@ void ComputeQ6SmoothAtom::compute_all()
     scalar = phi_sum_all;
   }
 
+  if (mode & NO_DIFF)
+    vector[2] = -1.0;
+
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
     jnum = numneigh[i];
