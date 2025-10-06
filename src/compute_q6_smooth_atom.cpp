@@ -1366,6 +1366,10 @@ void ComputeQ6SmoothAtom::compute_all()
   if (mode & NO_DIFF)
     vector[2] = -1.0;
 
+
+  double slopeModType = 0.0;
+  double slopeModTypeAll = 0.0;
+
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
     jnum = numneigh[i];
@@ -1387,6 +1391,9 @@ void ComputeQ6SmoothAtom::compute_all()
     }
 
     array_atom[i][val_col] *= scaling;
+
+
+
     if (!(mode & NO_DIFF)) {
       array_atom[i][diff_x_col] *= scaling;
       array_atom[i][diff_y_col] *= scaling;
@@ -1408,18 +1415,18 @@ void ComputeQ6SmoothAtom::compute_all()
       double slope = std::sqrt(x_comp * x_comp + y_comp * y_comp + z_comp * z_comp);
       vector[2] = 0.0;
       if (slope < min_slope) {
-        vector[2] = 0.5;
+        slopeModType += 0.5;
         //const double target = std::abs(rng->gaussian()) * min_slope; // >= 0
         const double target = min_slope;
         // slope is under radical so it will never be negative..
         if (slope <= 0.0) {
-          vector[2] = 1.0;
+          slopeModType += 0.5;
           /*if (comm->me == 0)
            error->warning(FLERR,"Dead gradient of zero in all the direction! \
                                  Setting a random value in the x-direction!");
           */
           //int dirs[3] = {diff_x_col,diff_y_col,diff_z_col};
-          //int idx = (static_cast<int>(std::abs(rng->uniform()*100.0))) %3;
+          //int idx = (static_cast<in      iarg += 2;t>(std::abs(rng->uniform()*100.0))) %3;
           //array_atom[i][dirs[idx]] = target;
           array_atom[i][diff_x_col] = target;
         } else {
@@ -1432,6 +1439,9 @@ void ComputeQ6SmoothAtom::compute_all()
     }
 
   }
+
+  MPI_Allreduce(&slopeModType,&slopeModTypeAll,1,MPI_DOUBLE,MPI_SUM,world);
+  vector[2] = slopModeTypeAll;
 
   //scalar = num_selected_all ? Q6_sum_all / static_cast<double>(num_selected_all) :0.0;
 }
