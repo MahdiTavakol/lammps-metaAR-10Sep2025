@@ -30,6 +30,8 @@
 #include <cstring>
 #include <numeric>
 
+#include <iostream>
+
 using namespace LAMMPS_NS;
 
 // Transfer mode flag
@@ -182,12 +184,20 @@ void ComputeQ6SmoothAtom::init()
       mode = (mode & NO_DIFF) | SIMPLE_N_MODE;     
     }
   }
+
+  scalar_flag = 0;
+  vector_flag = 1;
+  size_vector = 3;
+
+  memory->create(vector,size_vector,"compute_q6_smooth_atom.cpp:vector");
+
 }
 
 /* ----------------------------------------------------------------------- */
 
 ComputeQ6SmoothAtom::~ComputeQ6SmoothAtom()
 {
+  if (vector) memory->destroy(vector);
   if (q6ms_real) memory->destroy(q6ms_real);
   if (q6ms_imag) memory->destroy(q6ms_imag);
   if (diff_q6ms_real) memory->destroy(diff_q6ms_real);
@@ -249,7 +259,7 @@ void ComputeQ6SmoothAtom::compute_all()
   int *type = atom->type;
   int *mask = atom->mask;
 
-  //neighbor->build_one(list);
+  neighbor->build_one(list);
 
   if (atom->nmax > nmax) {
     nmax = atom->nmax;
@@ -510,7 +520,7 @@ void ComputeQ6SmoothAtom::compute_all()
    * (2)  PHI_MODE: Ni = qi*(wij sigmaqj) = qi*gi
    *      dNi/dri = dqi/dri * gi + qi* (sigma dqj/dri)
    *      dNj/dri = dqj/dri * gj + qj* (sigma dqk/dri)
-   *      Thus Ni also contributes to j and for the same reason we need hj.. but hj = wij*qj*dqi/drj
+   *      Thus Ni also contribu: I value focused work and tes to j and for the same reason we need hj.. but hj = wij*qj*dqi/drj
    *      diffN1/diffrk = diffq1 *(q2+q3+q4) + q1*(diffq2+diffq3+diffq4)
    *
    * (3)  SIMPLE_N_MODE: N_total = simga(Ni)
@@ -1342,10 +1352,17 @@ void ComputeQ6SmoothAtom::compute_all()
   phi_sum_all *= scaling;
   Q6_sum_all *= scaling;
   
-  if (mode & (N_MODE | SIMPLE_N_MODE))
+  double value;
+  if (mode & (N_MODE | SIMPLE_N_MODE)) {
+    vector[0] = Q6_sum_all;
+    vector[1] = 0.0;
+    value = vector[0];
     scalar = Q6_sum_all;
-  else if (mode & (PHI_MODE | SIMPLE_PHI_MODE))
-    scalar = phi_sum_all;
+  } else if (mode & (PHI_MODE | SIMPLE_PHI_MODE)) {
+    vector[0] = Q6_sum_all;
+    vector[1] = phi_sum_all;
+    value = vector[1];
+  }
 
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
@@ -1382,12 +1399,14 @@ void ComputeQ6SmoothAtom::compute_all()
       // x*diffs = -x*diffZ/Z^2
       // x*diffs = -xscaled * diffZ/Z
       // x*diffs = -xscaled * scaling*diffZ (scaling = 1/Z)
-      array_atom[i][diff_x_col] += -scalar*scaling*diff_Z_all[i][0];
-      array_atom[i][diff_y_col] += -scalar*scaling*diff_Z_all[i][1];
-      array_atom[i][diff_z_col] += -scalar*scaling*diff_Z_all[i][2];
+      array_atom[i][diff_x_col] += -value*scaling*diff_Z_all[i][0];
+      array_atom[i][diff_y_col] += -value*scaling*diff_Z_all[i][1];
+      array_atom[i][diff_z_col] += -value*scaling*diff_Z_all[i][2];
 
       double slope = std::sqrt(x_comp * x_comp + y_comp * y_comp + z_comp * z_comp);
+      vector[2] = 0.0;
       if (slope < min_slope) {
+        vector[2] = 1.0;
         //const double target = std::abs(rng->gaussian()) * min_slope; // >= 0
         const double target = min_slope;
         // slope is under radical so it will never be negative..
