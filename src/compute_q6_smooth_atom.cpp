@@ -1390,8 +1390,8 @@ void ComputeQ6SmoothAtom::compute_all()
     }
 
     array_atom[i][val_col] *= scaling;
-    else if (mode & (PHI_MODE | SIMPLE_PHI_MODE)) {
-      array_atom[i][val_col] *= (1.0/Z_avg);
+    if (mode & (PHI_MODE | SIMPLE_PHI_MODE)) {
+      array_atom[i][second_val_col] *= (1.0/Z_avg);
     }
 
 
