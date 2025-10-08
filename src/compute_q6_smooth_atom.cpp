@@ -46,6 +46,7 @@ enum { Q6_FOR_STRIDE = 26, N_FOR_STRIDE = 1, G_FOR_STRIDE = 1 , DS2_FOR_STRIDE =
 // Function flags for s0/s1/s2/s3
 enum { NONE = 0, S0_SW=1<<0, S1_SW=1<<1, S2_SW=1<<2, S3_SW=1<<3};
 
+static constexpr double eps = 1e-8;
 
 
 /* ---------------------------------------------------------------------- */
@@ -601,7 +602,6 @@ void ComputeQ6SmoothAtom::compute_all()
      */
 
     /* Some tests -->>*/
-    const double eps = 1e-8;
     double ci_norm = 0.0;
     for (int indx = 0; indx < Q6_ARRAY_SIZE; indx++) {
       ci_norm += q6ms_real[i][indx] * q6ms_real[i][indx] + q6ms_imag[i][indx] * q6ms_imag[i][indx];
@@ -1023,13 +1023,13 @@ void ComputeQ6SmoothAtom::compute_all()
    * G2*dN2/dr1 = G2*(dq2*(q1+q3)+q2*(dq1+dq3))
    * G3*dN3/dr1 = G3*N1*(dq3*(q1+q2+q4)+q3*(dq1+dq2+dq4))
    * G4*dN4/dr1 = G4)*N1(dq4*(q1+q3)+q4*(dq1+dq3))
-   * 4A:  G2*dN2/dr1 += G2*dq1*q2 i == 1
+   * 5A:  G2*dN2/dr1 += G2*dq1*q2 i == 1
    *      G3*dN3/dr1 += G3*dq1*q3 i == 1
    *      G4*dN4/dr1 += G4*dq1*q4 i == 1
-   * 4B:  G2*dN2/dr1 += G2*dq2*(q1+q3) i == 2 j == 1
+   * 5B:  G2*dN2/dr1 += G2*dq2*(q1+q3) i == 2 j == 1
    *      G3*dN3/dr1 += G3*dq3*(q1+q2+q4) i == 3 j == 1
    *      G4*dN4/dr1 += G4*dq4*(q1+q3) i == 4 j == 1
-   * 4C:  G2*dN2/dr1 += G2*q2*(dq3) i == 2
+   * 5C:  G2*dN2/dr1 += G2*q2*(dq3) i == 2
    *      G3*dN3/dr1 += G3*q3*(dq2+dq4) i == 3
    *      G4*dN4/dr1 += G4*q4*(dq3) i == 4
    * 
@@ -1345,7 +1345,6 @@ void ComputeQ6SmoothAtom::compute_all()
   double Z_avg = Z_all / num_double;
   double scaling = 0.0;
 
-  const double eps = 1e-20;
   if (mode & (N_MODE | SIMPLE_N_MODE))
     scaling = (Z_all >= eps ? 1.0/Z_all : 0.0);
   else if (mode & (PHI_MODE | SIMPLE_PHI_MODE))
@@ -1391,29 +1390,31 @@ void ComputeQ6SmoothAtom::compute_all()
     }
 
     array_atom[i][val_col] *= scaling;
+    else if (mode & (PHI_MODE | SIMPLE_PHI_MODE)) {
+      array_atom[i][val_col] *= (1.0/Z_avg);
+    }
 
 
 
     if (!(mode & NO_DIFF)) {
-      array_atom[i][diff_x_col] *= scaling;
-      array_atom[i][diff_y_col] *= scaling;
-      array_atom[i][diff_z_col] *= scaling;
-      double x_comp = array_atom[i][diff_x_col];
-      double y_comp = array_atom[i][diff_y_col];
-      double z_comp = array_atom[i][diff_z_col];
-
       // diff(x*s) = s*diffx + diffs*x;
       // here we are adding the x*diffs
       // s = 1/Z
       // x*diffs = -x*diffZ/Z^2
       // x*diffs = -xscaled * diffZ/Z
       // x*diffs = -xscaled * scaling*diffZ (scaling = 1/Z)
+      array_atom[i][diff_x_col] *= scaling;
+      array_atom[i][diff_y_col] *= scaling;
+      array_atom[i][diff_z_col] *= scaling;
       array_atom[i][diff_x_col] += -scalar*scaling*diff_Z_all[i][0];
       array_atom[i][diff_y_col] += -scalar*scaling*diff_Z_all[i][1];
       array_atom[i][diff_z_col] += -scalar*scaling*diff_Z_all[i][2];
 
+      double x_comp = array_atom[i][diff_x_col];
+      double y_comp = array_atom[i][diff_y_col];
+      double z_comp = array_atom[i][diff_z_col];
+
       double slope = std::sqrt(x_comp * x_comp + y_comp * y_comp + z_comp * z_comp);
-      vector[2] = 0.0;
       if (slope < min_slope) {
         slopeModType += 0.5;
         //const double target = std::abs(rng->gaussian()) * min_slope; // >= 0
