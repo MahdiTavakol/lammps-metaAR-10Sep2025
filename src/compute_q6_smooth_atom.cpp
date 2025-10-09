@@ -1343,12 +1343,13 @@ void ComputeQ6SmoothAtom::compute_all()
 
   double num_double = static_cast<double>(num_selected_all);
   double Z_avg = Z_all / num_double;
+  double W_avg = W_all / num_double;
   double scaling = 0.0;
 
   if (mode & (N_MODE | SIMPLE_N_MODE))
     scaling = (Z_all >= eps ? 1.0/Z_all : 0.0);
   else if (mode & (PHI_MODE | SIMPLE_PHI_MODE))
-    scaling = (Z_avg*Z_avg*W_all >= eps ?1.0/(Z_avg*Z_avg*W_all):0.0);
+    scaling = (Z_avg*Z_avg*W_avg >= eps ?1.0/(Z_avg*Z_avg*W_avg):0.0);
   phi_sum_all *= scaling;
   Q6_sum_all *= scaling;
   
