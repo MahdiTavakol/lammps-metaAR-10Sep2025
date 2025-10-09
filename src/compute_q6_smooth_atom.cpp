@@ -1349,7 +1349,7 @@ void ComputeQ6SmoothAtom::compute_all()
   if (mode & (N_MODE | SIMPLE_N_MODE))
     scaling = (Z_all >= eps ? 1.0/Z_all : 0.0);
   else if (mode & (PHI_MODE | SIMPLE_PHI_MODE))
-    scaling = (Z_avg*Z_avg*W_avg >= eps ?1.0/(Z_avg*Z_avg*W_avg):0.0);
+    scaling = (W_avg >= eps ? 1.0/W_avg : 0.0);
   phi_sum_all *= scaling;
   Q6_sum_all *= scaling;
   
