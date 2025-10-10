@@ -11,6 +11,9 @@ jobs:
   analyze:
     name: Analyze
     #if: ${{ github.repository == 'lammps/lammps' }}
+    if: >
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'push' && contains(github.event.head_commit.message, '[full]'))
     runs-on: ubuntu-latest
 
     permissions:
