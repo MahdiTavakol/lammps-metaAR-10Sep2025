@@ -3,16 +3,19 @@ name: "Check for Variable Length Arrays"
 
 on:
   push:
-    branches: [ develop, 'feature/*' ]
+    branches: [ develop, 'develop-*' ]
   pull_request:
-    branches: [ develop, 'feature/*' ]
+    branches: [ develop, 'develop-*' ]
 
   workflow_dispatch:
 
 jobs:
   build:
     name: Build with -Werror=vla
-    if: ${{ github.repository == 'lammps/lammps' }}
+    #if: ${{ github.repository == 'lammps/lammps' }}
+    if: >
+      contains(github.event.head_commit.message, '[full]') ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
