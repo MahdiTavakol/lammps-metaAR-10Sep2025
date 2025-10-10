@@ -3,9 +3,9 @@ name: "Unittest for MacOS"
 
 on:
   push:
-    branches: [develop,'feature/*']
+    branches: [develop,'develop-*']
   pull_request:
-    branches: [develop,'feature/*']
+    branches: [develop,'develop-*']
 
   workflow_dispatch:
 
@@ -17,6 +17,9 @@ jobs:
   build:
     name: MacOS Unit Test
     #if: ${{ github.repository == 'lammps/lammps' }}
+    if: >
+      contains(github.event.head_commit.message, '[full]') ||
+      github.event_name == 'workflow_dispatch'
     runs-on: macos-13
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
