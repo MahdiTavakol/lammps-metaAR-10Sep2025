@@ -3,11 +3,10 @@ name: "Check for C++23 Compatibility"
 
 on:
   push:
-    branches:
-      - develop
+    branches: [develop,'develop-*']
+    
   pull_request:
-    branches:
-      - develop
+    branches: [develop,'develop-*']
 
   workflow_dispatch:
 
@@ -18,7 +17,7 @@ concurrency:
 jobs:
   build:
     name: Build with C++23 support enabled
-    if: ${{ github.repository == 'lammps/lammps' }}
+    #if: ${{ github.repository == 'lammps/lammps' }}
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 2
