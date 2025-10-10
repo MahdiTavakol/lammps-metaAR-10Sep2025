@@ -3,11 +3,9 @@ name: "Check for Variable Length Arrays"
 
 on:
   push:
-    branches:
-      - develop
+    branches: [ develop, 'feature/*' ]
   pull_request:
-    branches:
-      - develop
+    branches: [ develop, 'feature/*' ]
 
   workflow_dispatch:
 
