@@ -127,13 +127,6 @@ FixSMD::FixSMD(LAMMPS *lmp, int narg, char **arg) :
       if ( !xc && !yc && !zc) error->all(FLERR,"At least one of x, y and z must be non-zero");
     if (r0 < 0) error->all(FLERR,"R0 < 0 for fix smd command");
     argoffs += 5;
-  } else if (strcmp(arg[argoffs],"compute") == 0) {
-    if (narg < argoffs +3) error->all(FLERR,"Illegal fix smd command");
-    styleflag |= SMD_COMPUTE;
-    cid = utils::strdup(arg[argoffs+1]);
-    r0 = utils::numeric(FLERR,arg[argoffs+2], false,lmp);
-    if (r0 < 0) error->all(FLERR, "R0 < 0 for fix smd command");
-    argoffs+=3;
   } else error->all(FLERR,"Illegal fix smd command");
 
   force_flag = 0;
@@ -196,16 +189,6 @@ void FixSMD::init()
 	  r_now = r0;
   }
 
-  if (styleflag & SMD_COMPUTE)
-  {
-    Compute* cmptTmp = modify->get_compute_by_id(cid);
-    cmpt = dynamic_cast<ComputeDiffAtom*>(cmptTmp);
-    if (cmptTmp == nullptr)
-      error->all(FLERR,"Cannot find the compute");
-    if (cmpt == nullptr)
-      error->all(FLERR,"The compute is not of the correct type");
-    r_old = cmpt->scalar;
-  }
 
   if (utils::strmatch(update->integrate_style,"^respa")) {
     ilevel_respa = (dynamic_cast<Respa *>(update->integrate))->nlevels-1;
@@ -236,7 +219,6 @@ void FixSMD::post_force(int vflag)
 
   if (styleflag & SMD_TETHER) smd_tether();
   else if (styleflag & SMD_DIRECTION) smd_direction();
-  else if (styleflag & SMD_COMPUTE) smd_compute();
   else smd_couple();
 
   if (styleflag & SMD_CVEL) {
