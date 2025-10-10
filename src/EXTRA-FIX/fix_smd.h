@@ -21,7 +21,6 @@ FixStyle(smd,FixSMD);
 #define LMP_FIX_SMD_H
 
 #include "fix.h"
-#include "compute_diff_atom.h"
 
 namespace LAMMPS_NS {
 
@@ -56,7 +55,6 @@ class FixSMD : public Fix {
 
 
   void smd_direction();
-  void smd_compute();
   void smd_tether();
   void smd_couple();
 };

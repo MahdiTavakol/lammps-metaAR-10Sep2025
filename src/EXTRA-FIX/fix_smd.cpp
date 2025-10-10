@@ -40,8 +40,7 @@ enum { SMD_NONE=0,
        SMD_TETHER=1<<0, SMD_COUPLE=1<<1,
        SMD_CVEL=1<<2, SMD_CFOR=1<<3,
        SMD_AUTOX=1<<4, SMD_AUTOY=1<<5, SMD_AUTOZ=1<<6,
-       SMD_DIRECTION=1<<7,
-       SMD_COMPUTE=1<<8};
+       SMD_DIRECTION=1<<7};
 
 static constexpr double SMALL = 0.001;
 
@@ -451,52 +450,6 @@ void FixSMD::smd_direction()
         }
       }
   }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void FixSMD::smd_compute()
-{
-  double **f = atom->f;
-  int *mask = atom->mask;
-  int nlocal = atom->nlocal;
-
-  cmpt->compute_all();
-
-  r_now = cmpt->scalar;
-  const int diff_x_col = cmpt->diff_x_col;
-  const int diff_y_col = cmpt->diff_y_col;
-  const int diff_z_col = cmpt->diff_z_col;
-  double** cmpt_array_atom = cmpt->array_atom;
-
-  double fcv;
-
-  bigint ntimestep = update->ntimestep;
-  if (ntimestep == 0) {
-    r_old = r_now; 
-    return;
-  }
-  
-  ftotal[0] = ftotal[1] = ftotal[2] = 0.0;
-  force_flag = 0;
-
-  double dr = r_now - r0 - r_old;
-  if (styleflag & SMD_CVEL) {
-		fcv = k_smd*dr;
-  } else {
-	  fcv = f_smd;
-  }
-
-
-  for (int i = 0; i < nlocal; i++) {
-    f[i][0] -= cmpt_array_atom[i][diff_x_col]*fcv;
-    f[i][1] -= cmpt_array_atom[i][diff_y_col]*fcv;
-    f[i][2] -= cmpt_array_atom[i][diff_z_col]*fcv;
-    ftotal[0] -= cmpt_array_atom[i][diff_x_col]*fcv;
-    ftotal[1] -= cmpt_array_atom[i][diff_y_col]*fcv;
-    ftotal[2] -= cmpt_array_atom[i][diff_z_col]*fcv;
-  }
-
 }
 
 /* ---------------------------------------------------------------------- */
