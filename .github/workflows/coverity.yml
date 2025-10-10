@@ -9,7 +9,7 @@ on:
 jobs:
   analyze:
     name: Analyze
-    if: ${{ github.repository == 'lammps/lammps' }}
+    #if: ${{ github.repository == 'lammps/lammps' }}
     runs-on: ubuntu-latest
     container:
       image: lammps/buildenv:ubuntu22.04
