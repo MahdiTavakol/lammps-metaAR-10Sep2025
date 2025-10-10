@@ -3,11 +3,9 @@ name: "Unittest for Linux /w LAMMPS_BIGBIG"
 
 on:
   push:
-    branches:
-      - develop
+    branches: [develop, 'develop-*']
   pull_request:
-    branches:
-      - develop
+    branches: [develop, 'develop-*']
 
   workflow_dispatch:
 
@@ -18,7 +16,10 @@ concurrency:
 jobs:
   build:
     name: Linux Unit Test
-    if: ${{ github.repository == 'lammps/lammps' }}
+    #if: ${{ github.repository == 'lammps/lammps' }}
+    if: >
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'push' && contains(github.event.head_commit.message, '[full]'))
     runs-on: ubuntu-latest
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
