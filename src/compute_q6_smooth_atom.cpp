@@ -32,6 +32,7 @@
 
 #include <iostream>
 
+
 using namespace LAMMPS_NS;
 
 // Transfer mode flag
