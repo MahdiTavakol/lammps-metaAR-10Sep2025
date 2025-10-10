@@ -3,9 +3,9 @@ name: "Unittest for Linux /w LAMMPS_BIGBIG"
 
 on:
   push:
-    branches: [develop,'feature/*']
+    branches: [develop,'develop-*']
   pull_request:
-    branches: [develop,'feature/*']
+    branches: [develop,'develop-*']
 
   workflow_dispatch:
 
