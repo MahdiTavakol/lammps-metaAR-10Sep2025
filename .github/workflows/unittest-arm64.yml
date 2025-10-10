@@ -3,7 +3,7 @@ name: "Unittest for Linux on ARM64"
 
 on:
   push:
-    branches: [develop]
+    branches: [develop,'develop-*']
 
   workflow_dispatch:
 
