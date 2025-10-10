@@ -3,8 +3,7 @@ name: "Full Regression Test"
 
 on:
   push:
-    branches:
-      - develop
+    branches: [develop,'feature/*']
 
   workflow_dispatch:
 
@@ -12,7 +11,7 @@ jobs:
   build:
     name: Build LAMMPS
     # restrict to official LAMMPS repository
-    if: ${{ github.repository == 'lammps/lammps' }}
+    #if: ${{ github.repository == 'lammps/lammps' }}
     runs-on: ubuntu-latest
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
