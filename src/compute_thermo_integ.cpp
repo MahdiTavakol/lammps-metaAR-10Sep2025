@@ -368,6 +368,8 @@
        backup_restore_qfev<1>();      // backup charge, force, energy, virial array values
        
        modify_epsilon_q<parameter, mode, NEGATIVE>();      //
+       // forward comm so that ghost atoms are consistent
+       comm->forward_comm();
        update_lmp(); // update the lammps force and virial values
        if (groupbit == 1)
            uA = compute_epair(); // I guess it should be more efficient for the group all
@@ -376,6 +378,8 @@
        
        
        modify_epsilon_q<parameter, mode, POSITIVE>();
+       // forward comm so that ghost atoms are consistent
+       comm->forward_comm();
        update_lmp(); // update the lammps force and virial values
    
        if (groupbit == 1)
@@ -720,18 +724,16 @@
    
        bigint natoms = atom->natoms;
    
-       double energy_local = 0.0;
        double energy = 0.0;
-       if (force->pair) energy_local += (force->pair->eng_vdwl + force->pair->eng_coul);
+       if (force->pair) energy += (force->pair->eng_vdwl + force->pair->eng_coul);
+       if (force->pair && force->kspace) energy += force->kspace->energy;
    
        /* As the bond, angle, dihedral and improper energies
           do not change with the espilon, we do not need to
           include them in the energy. We are interested in
           their difference afterall */
    
-       MPI_Allreduce(&energy_local, &energy, 1, MPI_DOUBLE, MPI_SUM, world);
-       
-       if (force->pair && force->kspace) energy += force->kspace->energy;
+      
        energy /= static_cast<double> (natoms); // To convert to kcal/mol the total energy must be devided by the number of atoms
        return energy;
    }
