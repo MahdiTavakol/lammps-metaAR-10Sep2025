@@ -176,6 +176,9 @@ FixMetaAR::FixMetaAR(LAMMPS *lmp, int narg, char **arg) :
     } else if (strcmp(arg[iarg], "welltempered") == 0) {
       welltempered_flag = true;
       iarg += 1;
+    } else if (strcmp(arg[iarg],"numInstant") == 0) {
+      numInstant = utils::numeric(FLERR,arg[iarg+1],false,lmp);
+      iarg += 2;
     } else
       error->all(FLERR, "Unknown fix metaAR keyword: {}", arg[iarg]);
   }
