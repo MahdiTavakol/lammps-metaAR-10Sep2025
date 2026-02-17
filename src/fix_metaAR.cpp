@@ -42,6 +42,7 @@
 
 #include "thermo.h"
 
+#include <algorithm>
 #include <numeric>
 #include <cmath>
 #include <cstring>
@@ -327,6 +328,8 @@ void FixMetaAR::init()
 
 
   // Allocating memory for locS and locH
+  // Since these are double values the performance
+  // difference between reserve and resize is not so noticable!
   locCV1.resize(binsCV1);
   locCV2.resize(binsCV2);
 
@@ -367,6 +370,7 @@ void FixMetaAR::init()
     CV1Instant.reserve(numInstant);
     CV2Instant.reserve(numInstant);
   } else {
+    // I am suspecious.. will the next CV be written after the indx location or from the begining?
     // set the prev step CV1 and CV2
     int indx = CV1.size()-1;
     CV1prev = CV1[indx];
@@ -382,7 +386,8 @@ void FixMetaAR::init()
 void FixMetaAR::setup(int vflag)
 {
   for (int i = 0; i < binsCV1; i++)
-    for (int j = 0; j < binsCV2; j++) bias[i][j] = 0.0;
+    for (int j = 0; j < binsCV2; j++) 
+      bias[i][j] = 0.0;
 
   if (utils::strmatch(update->integrate_style, "^verlet"))
     post_force(vflag);
@@ -410,7 +415,7 @@ void FixMetaAR::post_force(int /*vflag*/)
   if (atom->nmax > nmax) {
     nmax = atom->nmax;
     memory->destroy(array_atom);
-    memory->create(array_atom, nmax, 2, "metaAR:array_atom");
+    memory->create(array_atom, nmax, size_peratom_cols, "metaAR:array_atom");
   }
 
 
@@ -471,21 +476,12 @@ void FixMetaAR::post_force(int /*vflag*/)
   CV1Instant.push_back(CV1tInstant);
   CV2Instant.push_back(CV2tInstant);
 
-  //compute_q6_peratom(2,CV1Instant,dCV1_dX,CV1tInstant,0);
-  //compute_entropy_peratom(CV1Instant,dCV1_dX,CV1tInstant,0);
-  //compute_q6_peratom(3,CV2Instant,dCV2_dX,CV2tInstant,1);
-  //compute_enthalpy_peratom(CV2Instant,dCV2_dX,CV2tInstant,1);
-  //compute_density_peratom(CV1Instant,dCV1_dX,CV1tInstant,0);
-  //compute_density_peratom(CV2Instant,dCV2_dX,CV2tInstant,1);
-
-
   if (!fixstep) step0();
 
   print_debug_1d(fixstep/numInstant);
 
 
   if (!(update->ntimestep % printfreq) && fixstep) print_meta();
-
   if (!(update->ntimestep % biasevery)) writefp2(fixstep/numInstant);
 }
 
@@ -523,15 +519,15 @@ void FixMetaAR::step0()
 
 void FixMetaAR::init_loc()
 {
-  double loc;
-  for (int i = 0; i < binsCV1; i++) {
-    loc = minCV1 + (i + 0.5) * (maxCV1 - minCV1) / binsCV1;
-    locCV1[i] = loc;
-  }
-  for (int i = 0; i < binsCV2; i++) {
-    loc = minCV2 + (i + 0.5) * (maxCV2 - minCV2) / binsCV2;
-    locCV2[i] = loc;
-  }
+  std::iota(locCV1.begin(),locCV1.end(),0.0);
+  std::transform(locCV1.cbegin(),locCV1.cend(),locCV1.begin(),[&](double i) {
+    return minCV1  + (i+0.5)*(maxCV1-minCV1)/binsCV1;
+  });
+
+  std::iota(locCV2.begin(),locCV2.end(),0.0);
+  std::transform(locCV2.cbegin(),locCV2.cend(),locCV2.begin(),[&](double i) {
+    return minCV2 + (i+0.5)*(maxCV2-minCV2)/binsCV2;
+  });
 }
   
 /* ----------------------------------------------------------------------
@@ -540,6 +536,8 @@ void FixMetaAR::init_loc()
 
 void FixMetaAR::modify_force()
 {
+  if (update->ntimestep % nevery) return;
+
   double **x = atom->x;
   double **f = atom->f;
 
@@ -563,18 +561,16 @@ void FixMetaAR::modify_force()
   const int cv2_col_dy = CV2Compute->diff_y_col;
   const int cv2_col_dz = CV2Compute->diff_z_col;
 
-  if (update->ntimestep % nevery) return;
 
   // virial setup
 
   //v_init(vflag);
 
   // update region if necessary
-
   if (region) region->prematch();
 
   // foriginal[0] = "potential energy" for added force
-  // foriginal[123] = force on atoms before extra force added
+  // foriginal[123] = added force on the atom
 
   foriginal[0] = foriginal[1] = foriginal[2] = foriginal[3] = 0.0;
   force_flag = 0;
@@ -671,7 +667,6 @@ void FixMetaAR::calculate_bias(const int &n)
   Vbiast = (biast - biastprev) / (numInstant * nevery * update->dt);
   biastprev = biast;
 
-  //if (Bt > 1e-10 || Bt < -1e-10)
   biasHistory.push_back(biast);
 
   /* Taking care of the situation in which the systems falls out of the grid
@@ -697,7 +692,7 @@ void FixMetaAR::calculate_bias(const int &n)
 void FixMetaAR::writeheader()
 {
   if (comm->me == 0) {
-    fp << "timestep,entropy,enthalpy,entropy_speed,enthalpy_speed,bias,bias_speed\n";
+    fp << "timestep,CV1,CV2,CV1_speed,CV2_speed,bias,bias_speed\n";
   }
 }
 
@@ -712,7 +707,6 @@ void FixMetaAR::writebiasdist(std::fstream &fp2, const int &n)
     for (int i = 0; i < binsCV1; i++)
       for (int j = 0; j < binsCV2; j++) {
         double Bt = 0.0;
-        bias[i][j] = 0.0;
         for (int k = 0; k < n - 1; k++) {
           double A = 0.5 *
               ((locCV1[i] - CV1[k]) * (locCV1[i] - CV1[k]) / (sigmaCV1 * sigmaCV1) +
@@ -724,11 +718,13 @@ void FixMetaAR::writebiasdist(std::fstream &fp2, const int &n)
       }
 
     fp2 << "binsCV1\\binsCV2" << std::endl;
-    for (int j = 0; j < binsCV1; j++) fp2 << "," << locCV1[j];
+    for (int j = 0; j < binsCV1; j++) 
+      fp2 << "," << locCV1[j];
     fp2 << "\n";
     for (int i = 0; i < binsCV2; i++) {
       fp2 << locCV2[i];
-      for (int j = 0; j < binsCV1; j++) fp2 << "," << bias[i][j];
+      for (int j = 0; j < binsCV1; j++) 
+        fp2 << "," << bias[i][j];
       fp2 << std::endl;
     }
   }
@@ -742,8 +738,10 @@ void FixMetaAR::print_meta()
 {
   bigint ntimestep = update->ntimestep;
   if (comm->me == 0) {
-    fp << ntimestep << "," << CV1t << "," << CV2t << "," << vCV1 << "," << vCV2 << "," << biast << ","
-         << Vbiast << std::endl;
+    fp << ntimestep << "," 
+       << CV1t  << "," << CV2t   << "," 
+       << vCV1  << "," << vCV2   << "," 
+       << biast << "," << Vbiast << std::endl;
   }
 }
 
@@ -843,6 +841,10 @@ double FixMetaAR::compute_vector(int n)
 double FixMetaAR::memory_usage()
 {
   double bytes = 0.0;
+  // array_atom 
+  bytes += static_cast<double>(nmax*size_peratom_cols)*sizeof(double);
+  // bias
+  bytes += static_cast<double>(binsCV1*binsCV2)*sizeof(double);
   return bytes;
 }
 
@@ -868,7 +870,9 @@ void FixMetaAR::write_restart(FILE* fp)
             error->one(FLERR,"Internal error! ,{}, {}, {}, {}, {}",CV1size,CV2size,biasHistorysize,CV1Instantsize,CV2Instantsize);
 
         // The first element is for the CV1size and the second for the CV1Instantsize!
+        // then CV1, CV2, biasHistory, CV1Instant and CV2Instant
         int nsize = 2 + 3*CV1size + 2*CV1Instantsize;
+        // data vector
         std::vector<double> data;
         data.reserve(nsize);
 
