@@ -42,7 +42,6 @@ class FixMetaAR : public Fix {
   double compute_scalar() override;
   double compute_vector(int) override;
   double memory_usage() override;
-  void init_list(int, class NeighList *) override;
   void write_restart(FILE* ) override;
   void restart(char *) override;
 
@@ -69,9 +68,6 @@ class FixMetaAR : public Fix {
   int sigmaCV1style, sigmaCV2style;
   int binsCV1style, binsCV2style;
 
-
-  // Neighborlist is required for the compute entropy
-  class NeighList *list;
 
   // Optional region input
   std::string idregion;

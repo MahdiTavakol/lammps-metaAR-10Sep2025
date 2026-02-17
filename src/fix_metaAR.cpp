@@ -24,8 +24,6 @@
 #include "math_const.h"
 #include "memory.h"
 #include "modify.h"
-#include "neigh_list.h"
-#include "neighbor.h"
 #include "output.h"
 #include "region.h"
 #include "respa.h"
@@ -174,6 +172,7 @@ FixMetaAR::FixMetaAR(LAMMPS *lmp, int narg, char **arg) :
       setMinMax = false;
       iarg += 5;
     } else if (strcmp(arg[iarg], "welltempered") == 0) {
+      // May be I should use just one general flag!
       welltempered_flag = true;
       iarg += 1;
     } else if (strcmp(arg[iarg],"numInstant") == 0) {
@@ -204,6 +203,8 @@ FixMetaAR::~FixMetaAR()
 {
   if (bias)       memory->destroy(bias);
   if (array_atom) memory->destroy(array_atom);
+  bias = nullptr;
+  array_atom = nullptr;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -227,6 +228,7 @@ void FixMetaAR::init()
   if (CV1ComputeTmp == nullptr || CV2ComputeTmp == nullptr )
     error->all(FLERR, "Illegal computes in fix metaAR");
 
+  // Do I need CVs derived from the ComputeDiffAtom???
   CV1Compute = dynamic_cast<ComputeDiffAtom*>(CV1ComputeTmp);
   CV2Compute = dynamic_cast<ComputeDiffAtom*>(CV2ComputeTmp);
 
@@ -249,9 +251,9 @@ void FixMetaAR::init()
     deltaTvar = input->variable->find(deltaTstr.c_str());
     if (deltaTvar < 0) error->all(FLERR, "Variable {} for fix metaAR does not exist", deltaTstr);
     if (input->variable->equalstyle(deltaTvar))
-      error->all(FLERR, "Atomic style variable is not supported in fix metaAR");
+      deltaTstyle = EQUAL;
     else if (input->variable->atomstyle(deltaTvar))
-      deltaTstyle = ATOM;
+      error->all(FLERR, "Atomic style variable is not supported in fix metaAR");
     else
       error->all(FLERR, "Variable {} for fix metaAR is invalid style", deltaTstr);
   }
@@ -285,7 +287,7 @@ void FixMetaAR::init()
       error->all(FLERR, "Atomic style variable is not supported in fix metaAR");
      else
     error->all(FLERR, "Variable {} for fix metaAR is invalid style", binsCV1str);
-    }
+  }
   if (!binsCV2str.empty()) {
     binsCV2var = input->variable->find(binsCV2str.c_str());
     if (binsCV2var < 0) error->all(FLERR, "Variable {} for fix metaAR does not exist", binsCV2str);
@@ -317,18 +319,6 @@ void FixMetaAR::init()
 
   nmax = atom->nmax;
   memory->create(array_atom, nmax, size_peratom_cols, "fix_metaAR:array_atom");
-
-  // Request a full neighbor list
-  int list_flags = NeighConst::REQ_FULL;    // You might not need a full neighbor list
-
-  // need neighbors of the ghost atoms
-  // list_flags |= NeighConst::REQ_GHOST; // You might not need ghosts
-  // Occasional neighbor list build
-  list_flags |= NeighConst::REQ_OCCASIONAL;
-
-  // request for a neighbor list
-  neighbor->add_request(this, list_flags);
-
 
   // With every keyword in run the init is called at every N steps
   // so we need to delete locS and locH from previous runs
@@ -525,16 +515,6 @@ void FixMetaAR::step0()
   print_debug_1d_header();
 
   if (comm->me == 0) error->warning(FLERR, "CV1={},CV2={},DCV1={},DCV2={}", CV1tInstant, CV2tInstant, DCV1, DCV2);
-}
-
-/* ----------------------------------------------------------------------
-   compute pair entropy --> adapted from src/extra-computes/compute_entropy_atom.h
-   with the credit for Pablo Piaggi (EPFL Lausanne)
-------------------------------------------------------------------------- */
-
-void FixMetaAR::init_list(int /*id*/, NeighList *ptr)
-{
-  list = ptr;
 }
 
 /* ----------------------------------------------------------------------
