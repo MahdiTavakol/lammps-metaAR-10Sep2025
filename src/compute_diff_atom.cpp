@@ -48,7 +48,6 @@ ComputeDiffAtom::~ComputeDiffAtom()
 
 void ComputeDiffAtom::init()
 {
-
   scalar_flag = 1;
   peratom_flag = 1;
   size_peratom_cols = 6;
@@ -62,7 +61,7 @@ void ComputeDiffAtom::init()
   int list_flags = NeighConst::REQ_FULL;    // The Full neighbor list is needed to have both the ij and ji pairs
 
   // need neighbors of the ghost atoms
-  //list_flags |= NeighConst::REQ_GHOST; // I do not need the neighbors of ghost atoms
+  list_flags |= NeighConst::REQ_GHOST; // I do need the ghost atoms as neighbors
   // Occasional neighbor list build
   list_flags |= NeighConst::REQ_OCCASIONAL;
 
