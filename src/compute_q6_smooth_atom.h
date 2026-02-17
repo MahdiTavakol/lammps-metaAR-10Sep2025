@@ -120,10 +120,10 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
   }
 
   static std::array<double, 104> calculate_Y6m(const std::array<double, 3> &dist);
-  static void calculate_dq6i_drj(const std::array<double, N_DIM> &dist, const double *q6m_real_i,
-                                 const double *q6m_imag_i, const double &inv_nbnum,
-                                 const double &inv_q6_norm_i, double **dqi_drj_real,
-                                 double **dqi_drj_imag);
+  static void calculate_dq6i_drj(const std::array<double, N_DIM> &dist, 
+                                 const double *q6m_real_i, const double *q6m_imag_i, 
+                                 const double &inv_nbnum, const double &inv_q6_norm_i, 
+                                 double **dqi_drj_real, double **dqi_drj_imag);
 
   inline static double smooth_floor(double a, double floor, double k=16.0) noexcept
   {
@@ -155,14 +155,16 @@ class ComputeQ6SmoothAtom : public ComputeDiffAtom {
         [[fallthrough]];
       case 0:
         return out;
-      default:;    // fall back below if n>6
+      default:
+      ;    // fall back below if n>6
     }
     // Fallback for bigger n: exponentiation by squaring (O(log n))
     double r = out, b = s;
     unsigned k = static_cast<unsigned>(n);
     r = 1.0;
     while (k) {
-      if (k & 1) r *= b;
+      if (k & 1) 
+        r *= b;
       b *= b;
       k >>= 1;
     }

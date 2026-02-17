@@ -378,15 +378,6 @@ void ComputeQ6SmoothAtom::compute_all()
     else
       unit(input,output,diff);
   };
-  /*
-  auto s1 = [&](const double& input, double& output, double& diff) {
-    output = input;
-    diff = 1.0;
-  };
-  auto s2 = [&](const double& input, double& output, double& diff) {
-    output = input;
-    diff = 1.0;
-  };*/
 
   /*
    * This part calculates the q6ms and their self differential (diffqi/diffri).
@@ -501,6 +492,9 @@ void ComputeQ6SmoothAtom::compute_all()
   /*
    * This part calculates the contribution of the atom i to the the differential of N_total [Ni]
    *  with respect to ri and also diff of N_total [Nj] with respect to rj (self diffs)
+   * 
+   * 
+   * 
    * (1)  N_MODE: N_total = sigma(Ni) 
    *      Ni = s2(sigma(s1(cij)*s0(rij)))
    *      In this case despite the SIMPLE_N_MODE there is no symmetery since the ds2 coefficient for
@@ -510,21 +504,27 @@ void ComputeQ6SmoothAtom::compute_all()
    *          ds2[i]*s1(i,j)*ds0(i,j)*drij/dri = wpair2*drij/dri
    *          the distance depedent contribition of Ni to the dN/drj is
    *          -ds2[i]*s1(i,j)*ds0(i,j)*drij/drj = -wpair2*drij/drj
-   *      (B) The cij depdent term is dcij/drk = sigma(qj)*dqi/drk + sigma(dqj/drk)*qi
+   *      (B) The cij depndent term is dcij/drk = sigma(qj)*dqi/drk + sigma(dqj/drk)*qi
    *          The first term is ds2*ds1*s0*sigma(qj)*dqi/drk = gi*dqi/drk
    *          Each atom i contribution to its own diff  = gi*dqi/dri
    *          Each atom i contribution to the j diff = gi*dqi/drj
-   *      (C) The third term is ds2[i]*ds1(i,j)*s0(i,j)*dqj/drk which is contributed only from neighbor atoms
+   *      (C) The third term is ds2[i]*ds1(i,j)*s0(i,j)*qi*dqj/drk which is contributed only from neighbor atoms
    *          The contribution of atom i to the neighbor j is 
    *          sigma(ds2[j]*ds1(i,j)*s0(i,j)*qj)*dqi/drj = g_primei*dqi/drj
    *          gprimei is different than gi since wpair in the gprime is ds2[i]*... while in gprime is ds2[j] which breaks the symmetery..
    * 
+   * 
+   * 
    * (2)  PHI_MODE: Ni = qi*(wij sigmaqj) = qi*gi
    *      dNi/dri = dqi/dri * gi + qi* (sigma dqj/dri)
    *      dNj/dri = dqj/dri * gj + qj* (sigma dqk/dri)
-   *      Thus Ni also contribu: I value focused work and tes to j and for the same reason we need hj.. but hj = wij*qj*dqi/drj
+   *      Thus Ni also contribue: I value focused work and tes to j and for the same reason we need hj.. but hj = wij*qj*dqi/drj
    *      diffN1/diffrk = diffq1 *(q2+q3+q4) + q1*(diffq2+diffq3+diffq4)
    *
+   * 
+   * 
+   * 
+   * 
    * (3)  SIMPLE_N_MODE: N_total = simga(Ni)
    *      Ni = sigma(wij*qi*qj)
    *      gi = sigma(wij*qj) --> N_total = sigma(qi*gi)
@@ -537,7 +537,14 @@ void ComputeQ6SmoothAtom::compute_all()
    *      So, here we define hj = sigma (gi*dqi/rj over i), each rank adds its own contribution to the hj.
    *      Since the hj can be a ghost atom it has to be reverse communicated and added to the hj on the current rank.
    *      Then we go through every owned atom and add hj[i] to every diff.
+   * 
+   * 
+   * 
+   * 
+   * 
    */
+
+
 
   /*
    * (1)  We first calculate gi values.
@@ -564,14 +571,14 @@ void ComputeQ6SmoothAtom::compute_all()
    *      Ai = ds2[i]
    *      N = A1*q1*(q2+q3+q4)+A2*q2*(q1+q3)+A3*q3*(q1+q2+q4)+A4*q4*(q1+q3)
    *      N = A1*q1*g1+A2*q2*g2+A3*q3*g3+A4*q4*g4
-   *      dN1/dr1 = A1*dq1/dr1*(q2+q3+q4) = A1*dq1/dr1*g1 (first term of N1)
-   *      dN2/dr1 = A2*dq2/dr1*(q1+q3) = A2*dq2/dr1*g2 (first term of N2)
-   *      dN3/dr1 = A3*dq3/dr1*(q1+q2+q4) = A3*dq3/dr1*g3
-   *      dN4/dr1 = A4*dq4/dr1*(q1+q3) = A4*dq4/dr1*g4
-   *      dN/dr1 = dq1/dr1*(A2*q2+A3*q3+A4*q4)=dq1/dr1*(gprimi1)
-   *      dN/dr1 = dq2/dr1*(A1*q1+A3*q3)=dq2/dr1*(gprimi2)
-   *      dN/dr1 = dq3/dr1*(A1*q1+A3*q3+A4*q4)=dq3/dr1*(gprimi3)
-   *      dN/dr1 = dq4/dr1*(A1*q1+A3*q3)=dq4/dr1*(gprimi4)
+   *      dN/dr1 += A1*dq1/dr1*(q2+q3+q4) = A1*dq1/dr1*g1 (first term of N1)
+   *      dN/dr1 += A2*dq2/dr1*(q1+q3) = A2*dq2/dr1*g2 (first term of N2)
+   *      dN/dr1 += A3*dq3/dr1*(q1+q2+q4) = A3*dq3/dr1*g3
+   *      dN/dr1 += A4*dq4/dr1*(q1+q3) = A4*dq4/dr1*g4
+   *      dN/dr1 += dq1/dr1*(A2*q2+A3*q3+A4*q4)=dq1/dr1*(gprimi1)
+   *      dN/dr1 += dq2/dr1*(A1*q1+A3*q3)=dq2/dr1*(gprimi2)
+   *      dN/dr1 += dq3/dr1*(A1*q1+A3*q3+A4*q4)=dq3/dr1*(gprimi3)
+   *      dN/dr1 += dq4/dr1*(A1*q1+A3*q3)=dq4/dr1*(gprimi4)
    * 
    */
 
@@ -1610,14 +1617,14 @@ void ComputeQ6SmoothAtom::dist(const double &input, const double &cutoff, double
       diff += i * coeff[i] * pow_fun(x, i - 1);
     }
   }
+  // the current diff is with respect to x
   // The chain rule
   diff *= 1.0 / (cutoff - r0);
 
   // avoiding dead gradient
   if (std::abs(diff) <= min_slope)
-
-  if (x > 0.0 && x < 1.0)
-     diff = -smooth_floor(-diff,min_slope);
+    if (x > 0.0 && x < 1.0)
+       diff = -smooth_floor(-diff,min_slope);
 }
 
 
@@ -1693,7 +1700,7 @@ std::array<double, 104> ComputeQ6SmoothAtom::calculate_Y6m(const std::array<doub
     double ct_pow[7]; ct_pow[0] = 1.0;
     for (int k = 1; k <= 6; ++k) ct_pow[k] = ct_pow[k-1] * ct;
 
-    // Coefficient for m=0 (matches your C0 above)
+    // Coefficient for m=0
     const double C0 = (1.0/32.0) * std::sqrt(13.0/M_PI);
 
     // Associated Legendre for l=6,m=0 as polynomial in cos(theta)
